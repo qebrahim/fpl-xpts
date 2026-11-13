@@ -11,20 +11,102 @@ Players need at least 90 minutes by the cutoff. That gives 9,267 player-games.
 
 Baselines: season points-per-game so far, and the last four games.
 
-Calibration: for each (position, component) the factor is `sum(actual) / sum(predicted)`, shrunk towards 1
-with 20 pseudo-points. To avoid grading the factors on the data they were fitted on, there is also a
-**time split**: fit on target rounds <= 6, test on rounds >= 7.
+Calibration: for each (position, component) the factor is `(sum(actual) + k) / (sum(predicted) + k)`, the
+actual/predicted ratio shrunk towards 1 with k = 160 pseudo-points (`backtest.CAL_K`; it was k = 20 before the
+comparison below). The shipped factors are fitted on all rows, so the "in-sample" line grades them on the data they
+were fitted on. Two out-of-sample checks: **walk-forward calibration** (factors refitted at every cutoff from
+outcomes known at that cutoff, see below) and a single **time split** (fit on target rounds <= 6, test on rounds >= 7).
 
 ## Results
 
 | Predictor | RMSE | Bias | Corr |
 |---|---|---|---|
 | Model, uncalibrated | 2.964 | +0.29 | 0.289 |
-| Model, calibrated (in-sample) | 2.944 | +0.04 | 0.289 |
+| Model, calibrated (in-sample: shipped factors, fitted on these rows) | 2.944 | +0.03 | 0.289 |
+| Model, calibrated walk-forward (out-of-sample) | 2.956 | +0.14 | 0.286 |
 | Naive: season PPG | 3.332 | | |
 | Naive: last-four form | 3.365 | | |
 
-Time split (fit rounds <= 6, test rounds >= 7): RMSE 2.840 -> 2.827, bias +0.260 -> -0.015.
+Top-12 picks (average actual points of the 12 highest-projected players per cutoff and round): uncalibrated 4.65,
+in-sample calibrated 4.57, walk-forward 4.54.
+
+Time split (fit rounds <= 6, test rounds >= 7): RMSE 2.840 -> 2.825, bias +0.260 -> +0.008 (with k = 20 it was
+2.840 -> 2.827, bias -0.015).
+
+The walk-forward bias (+0.14) is much higher than in-sample because the first cutoffs have no or little data to fit
+on: cutoff 1 is uncalibrated (bias +0.53 on its 660 rows), cutoffs 2-3 are mostly shrunk to 1. From cutoff 4 on
+(6,212 rows) walk-forward calibration gives RMSE 2.813 vs 2.824 uncalibrated and bias +0.04 vs +0.24.
+
+## Walk-forward calibration and shrinkage of the factors
+
+`backtest.walk_forward_calibration`: for each cutoff c, the factors applied to the predictions made at c are fitted
+only on backtest rows whose **target round is <= c**. Those rows were predicted at earlier cutoffs (c' < round <= c)
+from data up to c', and their outcomes were known at c. A row predicted at c (target round c+1..c+5) is never in its
+own training set, and no outcome from a round after c is used. With no rows (cutoff 1) every factor is 1.0
+(`min_rows` can raise that threshold). `fplxpts backtest` prints this as the walk-forward line.
+
+Variants compared on the same 9,267 rows (WF = walk-forward; per-position columns are the WF bias; TS = time-split
+RMSE on rounds > 6; dSE = difference in mean squared error vs the chosen k = 160, walk-forward, with a 95% interval
+from a paired bootstrap by player, 2,000 reps; dTop12 bootstrapped by (cutoff, round)):
+
+| variant | in-sample RMSE / bias | WF RMSE | WF bias | GK | DEF | MID | FWD | WF top-12 | TS | dSE vs k=160 | dTop12 vs k=160 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| none | 2.9638 / +0.292 | 2.9638 | +0.292 | +0.27 | +0.27 | +0.33 | +0.23 | 4.65 | 2.8395 | +0.047 [-0.014, +0.104] | +0.12 [-0.06, +0.31] |
+| raw ratio (k = 0) | 2.9429 / +0.021 | 3.0010 | +0.163 | -0.14 | +0.10 | +0.21 | +0.50 | 4.45 | 2.8267 | +0.269 [+0.147, +0.407] | -0.09 [-0.27, +0.06] |
+| pseudo-points k = 20 (old) | 2.9431 / +0.022 | 2.9600 | +0.130 | -0.05 | +0.10 | +0.19 | +0.13 | 4.59 | 2.8266 | +0.025 [+0.006, +0.045] | +0.06 [-0.07, +0.18] |
+| k = 40 | 2.9432 / +0.023 | 2.9576 | +0.130 | -0.00 | +0.10 | +0.19 | +0.11 | 4.58 | 2.8264 | +0.010 [-0.002, +0.024] | +0.05 [-0.04, +0.15] |
+| k = 80 | 2.9434 / +0.026 | 2.9562 | +0.134 | +0.05 | +0.11 | +0.18 | +0.10 | 4.50 | 2.8259 | +0.003 [-0.004, +0.009] | -0.04 [-0.12, +0.05] |
+| **k = 160 (shipped)** | **2.9436 / +0.033** | **2.9558** | **+0.144** | **+0.10** | **+0.12** | **+0.19** | **+0.10** | **4.54** | **2.8253** | | |
+| k = 320 | 2.9440 / +0.045 | 2.9561 | +0.160 | +0.14 | +0.13 | +0.20 | +0.13 | 4.55 | 2.8249 | +0.001 [-0.006, +0.009] | +0.01 [-0.07, +0.09] |
+| k = 640 | 2.9448 / +0.066 | 2.9568 | +0.181 | +0.18 | +0.15 | +0.22 | +0.15 | 4.57 | 2.8253 | +0.006 [-0.012, +0.022] | +0.03 [-0.06, +0.12] |
+| log scale, weight n/(n+k), k = 300 games | 2.9435 / +0.041 | 2.9567 | +0.173 | +0.12 | +0.15 | +0.21 | +0.15 | 4.56 | 2.8251 | +0.005 [-0.009, +0.018] | +0.03 [-0.04, +0.10] |
+| log scale, weight S/(S+k), k = 160 points | 2.9436 / +0.025 | 2.9552 | +0.134 | +0.07 | +0.11 | +0.18 | +0.07 | 4.53 | 2.8255 | -0.004 [-0.009, +0.003] | -0.01 [-0.09, +0.07] |
+| pooled across positions, raw | 2.9474 / +0.023 | 2.9567 | +0.111 | -0.09 | +0.16 | +0.15 | -0.08 | 4.65 | 2.8251 | +0.006 [-0.033, +0.047] | +0.11 [-0.10, +0.33] |
+| pooled across positions, k = 80 | 2.9471 / +0.026 | 2.9542 | +0.115 | +0.03 | +0.16 | +0.14 | -0.09 | 4.63 | 2.8243 | -0.009 [-0.042, +0.027] | +0.09 [-0.12, +0.32] |
+
+(Also swept: pseudo-points k = 5, 10, 60, 100, 120, 200; linear shrinkage of the ratio with weight n/(n+k) in
+player-games, k = 100-10,000; log scale with weight n/(n+k), k = 100-10,000; log scale in points, k = 10-80. None
+beat the best rows above by more than noise.)
+
+Readings:
+- **The raw ratio overfits out of sample**: significantly worse than no calibration at all (+0.22 [+0.08, +0.37]
+  squared error vs none), driven by early cutoffs where a handful of games sets the factor (FWD walk-forward bias
+  +0.50).
+- **Shrinkage fixes that, and stronger shrinkage than the old k = 20 is better**: k = 20 vs k = 160 +0.025
+  [+0.006, +0.045]. The curve is flat from k = 80 to 320; the minimum is at 160-200.
+- **Calibration vs none** (k = 160): -0.047 [-0.104, +0.014] squared error overall, not significant over all
+  cutoffs, but from cutoff 4 on it is RMSE 2.813 vs 2.824 (-0.062 [-0.143, +0.023]) and fixes most of the +0.24
+  bias. It is kept.
+- The gain from shrinkage comes almost entirely from cutoffs 2-3; from cutoff 4 on (1,100+ training rows) raw,
+  k = 20 and k = 160 are within 0.001 RMSE. So with ten gameweeks the backtest cannot tell how strongly the
+  full-data factors should be shrunk; k = 160 is the out-of-sample optimum, not a proven one for the full sample.
+- Pooling across positions is within noise on RMSE but leaves position biases (DEF +0.16, FWD -0.09 walk-forward)
+  that per-position factors remove; the log-scale forms are within noise of the linear one.
+
+**Decision: per-position pseudo-points shrinkage with k = 160** (`fit_calibration(rows, k=CAL_K)`; `k=0` is the
+raw ratio, `k=20` the old method). Same formula as before, only k changed, which is the simplest option among those
+tied for best. A cell with S expected points gets the raw ratio with weight about S/(S+160): big cells (app, cs,
+goals) barely move, small ones (FWD assist 114 points, FWD dc 72, GK yc 24) are pulled hard towards 1.
+
+Refit on all rows (data through GW10, current default model), old shipped (k = 20, fitted before `dc_opp_k`,
+`team_sos_iters` and the minutes absence rule) -> new:
+
+| | GK | DEF | MID | FWD |
+|---|---|---|---|---|
+| app | 0.932 -> 0.937 | 0.861 -> 0.852 | 0.887 -> 0.885 | 0.938 -> 0.938 |
+| goal | | 0.516 -> 0.567 | 0.786 -> 0.796 | 0.832 -> 0.846 |
+| assist | | 0.974 -> 0.972 | 1.046 -> 1.037 | 2.038 -> 1.502 |
+| cs | 1.158 -> 1.135 | 1.118 -> 1.100 | 1.259 -> 1.212 | |
+| gc | 0.818 -> 0.865 | 0.763 -> 0.772 | | |
+| dc | | 0.995 -> 0.987 | 0.984 -> 0.989 | 0.284 -> 0.716 |
+| bonus | 0.793 -> 0.862 | 0.920 -> 0.927 | 0.813 -> 0.835 | 1.057 -> 1.037 |
+| sav | 0.601 -> 0.668 | | | |
+| yc | 0.843 -> 0.963 | 1.014 -> 0.999 | 1.011 -> 1.004 | 0.705 -> 0.853 |
+
+Effect on GW11-15 projections (top 10 per position in the site data): forwards -0.2 to -0.6 (N.Jackson 26.74 ->
+26.12, Haaland 25.61 -> 25.32; Barry and Haaland swap 2nd/3rd), defenders -0.07 to -0.18, goalkeepers +0.13 to
++0.47 (saves and bonus factors moved up; Verbruggen and Petrović swap 4th/5th), midfielders within +-0.08. No
+player enters or leaves a top 10.
 
 The backtest applies **no availability flags**: a player who is injured after the cutoff is still projected and
 scores 0. The live Projector drops players flagged out (`status` i/s/n/u or 0% chance) and scales the next
@@ -51,16 +133,18 @@ particular adds very little; it is kept small as a stabiliser.
 
 ## What the backtest found (calibration factors)
 
+Shipped (shrunk, k = 160) factors, with the raw ratio in brackets:
+
 | Position | Component | Factor | Reading |
 |---|---|---|---|
-| DEF | goal | 0.52 | defender goal threat over-projected ~2x |
-| MID | goal | 0.79 | mid xG converted ~20% worse than projected |
-| FWD | goal | 0.83 | |
-| FWD | assist | 2.04 | forward assists under-projected (small sample: ~850 player-games) |
-| DEF | cs / gc | 1.12 / 0.76 | clean sheets more likely than Poisson-on-xG says |
-| MID | cs | 1.26 | |
-| GK | sav | 0.60 | saves over-projected |
-| all | app | 0.86-0.94 | minutes over-projected (rotation under-priced) |
+| DEF | goal | 0.57 (0.50) | defender goal threat over-projected ~2x |
+| MID | goal | 0.80 (0.78) | mid xG converted ~20% worse than projected |
+| FWD | goal | 0.85 (0.82) | |
+| FWD | assist | 1.50 (2.21) | forward assists under-projected (small sample: 114 expected points) |
+| DEF | cs / gc | 1.10 / 0.77 (1.11 / 0.75) | clean sheets more likely than Poisson-on-xG says |
+| MID | cs | 1.21 (1.26) | |
+| GK | sav | 0.67 (0.59) | saves over-projected |
+| all | app | 0.85-0.94 | minutes over-projected (rotation under-priced) |
 
 ## Does finishing persist?
 
@@ -241,8 +325,9 @@ are overridden there); Isak without the override 19.7 -> 24.5 over GW11-15.
 
 ## Limitations
 
-- Only 10 gameweeks; calibration factors are partly fitted to the window they are evaluated on (the time
-  split mitigates but does not remove this). Refit as the season grows.
+- Only 10 gameweeks. The shipped calibration factors are fitted on the whole window, so the in-sample line
+  flatters them; the walk-forward line is the honest number (it includes uncalibrated cutoff 1). The shrinkage
+  strength is only identified by the early cutoffs. Refit as the season grows.
 - The backtest uses raw histories. Per-match penalty data is not available for past gameweeks, so
   penalties are stripped only in live projections.
 - Last-season priors include penalty xG and cannot see club changes.

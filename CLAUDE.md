@@ -7,7 +7,7 @@ optimiser. Pure Python (>=3.11), only dependency is numpy (backtest). Data comes
 ## Commands
 ```bash
 pip install -e ".[dev]"
-pytest                      # offline unit tests (53)
+pytest                      # offline unit tests (58)
 ruff check .
 fplxpts backtest            # needs network (cached in .cache/)
 fplxpts squad --squad config/squad.example.toml --swap Schade:Rudoni
@@ -28,8 +28,10 @@ calibration factors) and the user's squad TOML.
   and `team_state(season, cut, ...)` enforce this with `cut`.
 - TOML: top-level keys must come before the first `[[table]]`, or they attach to that table.
 - FPL exposes `penalties_missed` but not penalties scored; scored penalties come from the squad TOML.
-- Calibration factors were fitted on GW1-10 of 2026/27 and are partly in-sample; refit with
-  `fplxpts backtest --fit` and paste into `default.toml`.
+- Calibration factors were refitted on GW1-10 of 2026/27 (2026-11, current default model, pseudo-point shrinkage
+  k = 160 = `backtest.CAL_K`, chosen by walk-forward calibration). The in-sample backtest line grades them on the
+  rows they were fitted on; the walk-forward line is the honest one. Refit with `fplxpts backtest --fit` and paste
+  into `default.toml`.
 - Be polite to the API: use the cache, don't add per-request fetch loops without caching.
 - Don't scrape sites that disallow it; penalty data sources must be documented and respect their terms.
 - Do not commit `.cache/` or `config/squad.toml`.

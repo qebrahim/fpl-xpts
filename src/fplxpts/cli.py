@@ -93,14 +93,18 @@ def cmd_backtest(args):
     cuts = list(range(1, last))
     rows = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last)
     print(f"Walk-forward backtest: cutoffs GW{cuts[0]}-{cuts[-1]}, next {args.horizon} rounds, {len(rows)} player-games")
-    m0, m1 = bt.metrics(rows), bt.metrics(rows, cfg.calibration)
-    print(f"  model (uncalibrated)  RMSE {m0['rmse']:.3f}  bias {m0['bias']:+.3f}  corr {m0['corr']:.3f}  top-12 picks {bt.top_k_actual(rows):.2f}")
-    print(f"  model (calibrated)    RMSE {m1['rmse']:.3f}  bias {m1['bias']:+.3f}  corr {m1['corr']:.3f}  top-12 picks {bt.top_k_actual(rows, cfg.calibration):.2f}  (in-sample)")
+    m0, m1, wf = bt.metrics(rows), bt.metrics(rows, cfg.calibration), bt.walk_forward_metrics(rows)
+    print(f"  model (uncalibrated)          RMSE {m0['rmse']:.3f}  bias {m0['bias']:+.3f}  corr {m0['corr']:.3f}  top-12 picks {bt.top_k_actual(rows):.2f}")
+    print(f"  model (calibrated, in-sample) RMSE {m1['rmse']:.3f}  bias {m1['bias']:+.3f}  corr {m1['corr']:.3f}  top-12 picks {bt.top_k_actual(rows, cfg.calibration):.2f}"
+          "  (shipped factors, fitted on these rows)")
+    print(f"  model (calibrated, walk-fwd)  RMSE {wf['rmse']:.3f}  bias {wf['bias']:+.3f}  corr {wf['corr']:.3f}  top-12 picks {wf['top12']:.2f}"
+          "  (out-of-sample: refit at each cutoff on rounds <= cutoff)")
     for kind in ("ppg", "form4"):
-        print(f"  naive {kind:<14} RMSE {bt.baseline_rmse(season, kind, cuts, args.horizon, last):.3f}")
+        print(f"  naive {kind:<23} RMSE {bt.baseline_rmse(season, kind, cuts, args.horizon, last):.3f}")
     ts = bt.time_split(rows)
     print(f"  time split (fit rounds<=6 n={ts['train_n']}, test rounds>6 n={ts['test_n']}): "
-          f"RMSE {ts['uncalibrated']['rmse']:.3f} -> {ts['calibrated']['rmse']:.3f}")
+          f"RMSE {ts['uncalibrated']['rmse']:.3f} -> {ts['calibrated']['rmse']:.3f}, "
+          f"bias {ts['uncalibrated']['bias']:+.3f} -> {ts['calibrated']['bias']:+.3f}")
     if args.fit:
         print("\n# paste into src/fplxpts/default.toml\n" + bt.calibration_toml(bt.fit_calibration(rows)))
 

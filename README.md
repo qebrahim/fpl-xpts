@@ -23,10 +23,12 @@ the errors it finds.
 - **Penalties handled explicitly:** taken penalties are stripped from history and each club's primary taker
   gets a normal forward-looking share, so a lucky run of penalties is not extrapolated.
 - **Expected points by component** (appearance, goals, assists, clean sheet, goals conceded, defensive
-  contribution, bonus, saves, cards), each calibrated by a per-position factor.
+  contribution, bonus, saves, cards), each calibrated by a per-position factor (actual/predicted ratio from the
+  backtest, shrunk towards 1).
 - **Lineup picker** (best XI, formation, captain) and a **single-transfer search** scored by best-XI points
   over a window.
-- **Backtest** with naive baselines, a time-split check on the calibration, and a calibration fitter.
+- **Backtest** with naive baselines, out-of-sample checks on the calibration (factors refitted at every cutoff, and
+  a time split), and a calibration fitter.
 
 ## Quick start
 
@@ -43,8 +45,8 @@ fplxpts backtest --fit                                               # replay th
 Example (`fplxpts squad --swap Schade:Rudoni --weeks 1`):
 
 ```
-GW11  5-2-3  XI 51.2  (C Isak, VC Haaland)
-   XI   : Raya 4.4, Van Hecke 4.9, Muharemović 4.5, De Cuyper 4.4, Thomas 4.2, Calafiori 4.1, Rudoni 5.2, Tavernier 3.7, Isak 5.7, Haaland 5.4, N.Jackson 4.9
+GW11  5-2-3  XI 50.9  (C Isak, VC Haaland)
+   XI   : Raya 4.4, Van Hecke 4.9, Muharemović 4.4, De Cuyper 4.3, Thomas 4.2, Calafiori 4.0, Rudoni 5.2, Tavernier 3.8, Isak 5.6, Haaland 5.3, N.Jackson 4.8
    Bench: Mbeumo 3.5, Rogers 3.2, Barnes 3.1, Palmer 0.0
 ```
 
@@ -54,13 +56,15 @@ Walk-forward over GW1-9 starts, predicting the next 5 rounds (9,267 player-games
 
 | Predictor | RMSE |
 |---|---|
-| Model, calibrated (in-sample) | 2.944 |
+| Model, calibrated, walk-forward (out-of-sample) | 2.956 |
+| Model, calibrated, in-sample (shipped factors) | 2.944 |
 | Model, uncalibrated | 2.964 |
 | Season points-per-game so far | 3.332 |
 | Last-four-games form | 3.365 |
 
-Calibration factors fitted on early rounds and tested on later ones: RMSE 2.840 -> 2.827 and bias
-+0.26 -> -0.02. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
+The in-sample line uses factors fitted on the same rows; the walk-forward line refits them at each cutoff using
+only outcomes known by then (cutoff 1 has nothing to fit on and stays uncalibrated). Factors fitted on early
+rounds and tested on later ones: RMSE 2.840 -> 2.825 and bias +0.26 -> +0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
 See [docs/BACKTEST.md](docs/BACKTEST.md) for the method and what the backtest found (for example, defender
 goal threat was over-projected by roughly 2x, and past finishing under-performance did not persist).
 

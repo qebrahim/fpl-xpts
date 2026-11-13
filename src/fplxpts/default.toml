@@ -1,7 +1,10 @@
 # Default model hyper-parameters and calibration factors.
 # Hyper-parameters were chosen by walk-forward backtest over GW1-10 of 2026/27 (see docs/BACKTEST.md).
-# Calibration factors = mean(actual points) / mean(predicted points) per position and component, fitted
-# on the same window. Refit as the season progresses:  fplxpts backtest --fit
+# Calibration factors = (sum actual + k) / (sum predicted + k) points per position and component over the
+# walk-forward backtest rows, i.e. the actual/predicted ratio shrunk towards 1 with k = 160 pseudo-points
+# (backtest.CAL_K; k chosen by walk-forward out-of-sample backtest, see docs/BACKTEST.md). Fitted 2026-11 on
+# data through GW10 of 2026/27 with the current default model (after dc_opp_k = 40, team_sos_iters = 20 and the
+# minutes model skipping injury absences). Refit as the season progresses:  fplxpts backtest --fit
 
 [model]
 team_halflife = 3.0          # recency half-life (games) for team attack/defence ratings
@@ -26,36 +29,36 @@ absence_starts_after = 1     # started his last 2 played games before it and his
 "2024/25" = 0.5
 
 [calibration.GK]
-app = 0.932
-cs = 1.158
-gc = 0.818
-bonus = 0.793
-sav = 0.601
-yc = 0.843
+app = 0.937
+cs = 1.135
+gc = 0.865
+bonus = 0.862
+sav = 0.668
+yc = 0.963
 
 [calibration.DEF]
-app = 0.861
-goal = 0.516
-assist = 0.974
-cs = 1.118
-gc = 0.763
-dc = 0.995
-bonus = 0.920
-yc = 1.014
+app = 0.852
+goal = 0.567
+assist = 0.972
+cs = 1.100
+gc = 0.772
+dc = 0.987
+bonus = 0.927
+yc = 0.999
 
 [calibration.MID]
-app = 0.887
-goal = 0.786
-assist = 1.046
-cs = 1.259
-dc = 0.984
-bonus = 0.813
-yc = 1.011
+app = 0.885
+goal = 0.796
+assist = 1.037
+cs = 1.212
+dc = 0.989
+bonus = 0.835
+yc = 1.004
 
 [calibration.FWD]
 app = 0.938
-goal = 0.832
-assist = 2.038
-dc = 0.284
-bonus = 1.057
-yc = 0.705
+goal = 0.846
+assist = 1.502
+dc = 0.716
+bonus = 1.037
+yc = 0.853

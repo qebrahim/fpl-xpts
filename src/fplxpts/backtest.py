@@ -2,8 +2,9 @@
 
 For each cutoff gameweek c the model is rebuilt using ONLY data up to c, then asked to predict the next
 `horizon` gameweeks; predictions are compared with what happened. Calibration factors are the ratio of
-mean actual to mean predicted points per (position, component), and are checked with a time split
-(fit on early target rounds, test on later ones) so they are not simply fitted to the evaluation window.
+mean actual to mean predicted points per (position, component), shrunk towards 1 with pseudo-points.
+They are judged out of sample by refitting them at every cutoff on outcomes known by then
+(`walk_forward_metrics`) and by a single time split (fit on early target rounds, test on later ones).
 
 Note: the backtest uses the raw history (penalties are not stripped) because per-match penalty data is
 not available for past gameweeks; the live Projector strips them.
@@ -39,14 +40,23 @@ def evaluate(season: Season, cfg: Config, cuts=None, horizon: int = 5, last_gw: 
     return rows
 
 
+# pseudo-points shrinking each calibration factor towards 1.0 (chosen by walk-forward backtest, docs/BACKTEST.md)
+CAL_K = 160.0
+
+
 def predicted(rows, calibration=None):
     return np.array([total(r.comps, r.pos, calibration) for r in rows])
 
 
-def metrics(rows, calibration=None) -> dict:
-    pr, ac = predicted(rows, calibration), np.array([r.points for r in rows])
+def score(rows, pred) -> dict:
+    """Error metrics of predictions `pred` (one per row) against the points actually scored."""
+    pr, ac = np.asarray(pred, dtype=float), np.array([r.points for r in rows], dtype=float)
     return {"n": len(rows), "rmse": math.sqrt(np.mean((pr - ac) ** 2)), "mae": float(np.mean(np.abs(pr - ac))),
             "bias": float(np.mean(pr - ac)), "corr": float(np.corrcoef(pr, ac)[0, 1])}
+
+
+def metrics(rows, calibration=None) -> dict:
+    return score(rows, predicted(rows, calibration))
 
 
 def baseline_rmse(season: Season, kind: str, cuts, horizon: int, last_gw: int, min_minutes: int = 90) -> float:
@@ -63,8 +73,18 @@ def baseline_rmse(season: Season, kind: str, cuts, horizon: int, last_gw: int, m
     return math.sqrt(float(np.mean(errs)))
 
 
-def fit_calibration(rows, k: float = 20.0) -> dict:
-    """{(pos, component): factor}; k pseudo-points shrink thinly-populated cells towards 1.0."""
+def shrunk_ratio(sum_actual: float, sum_pred: float, k: float) -> float:
+    """(sum_actual + k) / (sum_pred + k) with k pseudo-points of 'predicted = actual' (sign-matched for the
+    negative components gc/yc). k = 0 is the raw ratio; as k grows the factor tends to 1.0. The pull towards 1
+    is strong for cells with few expected points (e.g. forward assists) and negligible for large ones."""
+    s = 1.0 if sum_pred > 0 else -1.0
+    return (sum_actual + k * s) / (sum_pred + k * s)
+
+
+def fit_calibration(rows, k: float = CAL_K) -> dict:
+    """{(pos, component): factor} from backtest rows; k pseudo-points shrink each factor towards 1.0.
+
+    k = 0 gives the raw mean(actual) / mean(predicted); k = 20 was the method before 2026-11."""
     cal = {}
     for pos in POS:
         sub = [r for r in rows if r.pos == pos]
@@ -72,22 +92,44 @@ def fit_calibration(rows, k: float = 20.0) -> dict:
             sp, sa = sum(r.comps[comp] for r in sub), sum(r.actual[comp] for r in sub)
             if abs(sp) < 1e-9:
                 continue
-            s = 1.0 if sp > 0 else -1.0
-            cal[(pos, comp)] = (sa + k * s) / (sp + k * s)
+            cal[(pos, comp)] = shrunk_ratio(sa, sp, k)
     return cal
 
 
-def top_k_actual(rows, calibration=None, k: int = 12) -> float:
+def walk_forward_calibration(rows, k: float = CAL_K, min_rows: int = 1) -> dict:
+    """{cutoff: factors} where the factors for cutoff c are fitted only on rows whose TARGET round is <= c,
+    i.e. on outcomes already known at c (those rows were predicted at earlier cutoffs, c' < round <= c).
+    A row predicted at c itself (target round > c) is never in its own training set. Fewer than `min_rows`
+    training rows -> {} (every factor 1.0)."""
+    out = {}
+    for c in sorted({r.cut for r in rows}):
+        train = [r for r in rows if r.rnd <= c]
+        out[c] = fit_calibration(train, k) if len(train) >= max(min_rows, 1) else {}
+    return out
+
+
+def walk_forward_predicted(rows, k: float = CAL_K, min_rows: int = 1):
+    """Out-of-sample calibrated predictions: each row uses the factors fitted at its own cutoff."""
+    cals = walk_forward_calibration(rows, k, min_rows)
+    return np.array([total(r.comps, r.pos, cals[r.cut]) for r in rows])
+
+
+def walk_forward_metrics(rows, k: float = CAL_K, min_rows: int = 1) -> dict:
+    pr = walk_forward_predicted(rows, k, min_rows)
+    return score(rows, pr) | {"top12": top_k_actual(rows, pred=pr)}
+
+
+def top_k_actual(rows, calibration=None, k: int = 12, pred=None) -> float:
     """Average actual points of the k highest-projected players in each (cutoff, round)."""
     by: dict = {}
-    for r, p in zip(rows, predicted(rows, calibration)):
+    for r, p in zip(rows, predicted(rows, calibration) if pred is None else pred):
         by.setdefault((r.cut, r.rnd), []).append((p, r.points))
     return float(np.mean([np.mean([a for _, a in sorted(v, reverse=True)[:k]]) for v in by.values()]))
 
 
-def time_split(rows, split_round: int = 6) -> dict:
+def time_split(rows, split_round: int = 6, k: float = CAL_K) -> dict:
     train, test = [r for r in rows if r.rnd <= split_round], [r for r in rows if r.rnd > split_round]
-    cal = fit_calibration(train)
+    cal = fit_calibration(train, k)
     return {"train_n": len(train), "test_n": len(test), "uncalibrated": metrics(test), "calibrated": metrics(test, cal)}
 
 

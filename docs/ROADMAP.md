@@ -3,10 +3,13 @@
 Ordered roughly by priority. Each item says why it matters. "Parity" means: after the change,
 `fplxpts squad/moves/backtest` must reproduce the golden numbers below unless the change is meant to move them.
 
-**Golden numbers (data through GW10, shipped config):** GW11-15 expected points: Rudoni 22.6, Konsa 24.9,
-N.Jackson 26.7, Isak 23.2, Haaland 25.6, Van Hecke 22.6 (Isak's minutes are overridden by hand in
-`config/squad.example.toml`; without the override, as in the export, he is 24.5). Backtest: 9,267 player-games,
-RMSE 2.964 (calibrated 2.944), time split 2.840 -> 2.827. (Updated when the minutes model started skipping inferred
+**Golden numbers (data through GW10, shipped config):** GW11-15 expected points: Rudoni 22.7, Konsa 24.7,
+N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5 (Isak's minutes are overridden by hand in
+`config/squad.example.toml`; without the override, as in the export, he is 24.1). Backtest: 9,267 player-games,
+RMSE 2.964 (calibrated in-sample 2.944, walk-forward 2.956), time split 2.840 -> 2.825. (Updated when the calibration
+factors were refitted with pseudo-point shrinkage k = 160 and walk-forward calibration was added; before that:
+Rudoni 22.6, Konsa 24.9, N.Jackson 26.7, Isak 23.2, Haaland 25.6, Van Hecke 22.6, Isak without override 24.5,
+RMSE 2.964 / 2.944, 2.840 -> 2.827. Updated when the minutes model started skipping inferred
 injury/suspension absences, `absence_starts_before = 2`; the six squad numbers did not move, before that: Isak
 without override 19.7, RMSE 2.962 / 2.943, 2.837 -> 2.827. Updated when strength-of-schedule team ratings were switched on,
 `team_sos_iters = 20`; before that: Rudoni 22.9, Konsa 24.7, N.Jackson 26.9, Isak 23.2, Haaland 25.5,
@@ -30,8 +33,11 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 
 ## P1: model improvements (from the backtest and review)
 
-1. **Out-of-sample reporting.** Make the backtest refit calibration at each cutoff (walk-forward) and report
-   only out-of-sample error, instead of full-sample factors.
+1. **Out-of-sample reporting.** (mostly done) `fplxpts backtest` now refits the calibration at each cutoff on
+   outcomes known by then (`backtest.walk_forward_calibration`) and prints that out-of-sample line next to the
+   in-sample one; the shrinkage strength (k = 160) was chosen on it (see docs/BACKTEST.md). Remaining: the
+   hyper-parameter sweeps and feature tests elsewhere in docs/BACKTEST.md still quote in-sample calibrated RMSE;
+   report walk-forward for future ones, and add a by-cutoff plot.
 2. **Team news in team ratings.** Ratings use season-long xG that still includes players who are now
    injured/suspended (key attackers or defenders). Adjust attack/defence for who is actually available.
 3. **Better minutes model.** The mean of the last 5 games, now skipping inferred injury/suspension absences
@@ -51,9 +57,10 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
    club moves; consider a team-level prior from last season for the first few gameweeks.
 8. **Bonus and saves.** Bonus is now event-driven (`bonus.py`, done). Remaining: model BPS directly (bonus is
    top-3 BPS *within a match*, so a goal is worth less when a teammate also scores), GK bonus (correlation fell
-   slightly) and GK saves, which are over-projected (0.60): use shots-on-target faced rather than rate x minutes.
-9. **Forward assists factor (2.04)** rests on ~850 player-games; stabilise it (stronger shrinkage or
-   a model of forward xA) and re-check as data accumulates.
+   slightly) and GK saves, which are over-projected (raw factor 0.59, shipped 0.67): use shots-on-target faced rather than rate x minutes.
+9. **Forward assists factor** (raw 2.21, shipped 1.50 after k = 160 shrinkage) rests on ~850 player-games
+   (114 expected points); stronger shrinkage is now in. Remaining: a model of forward xA, re-check as data
+   accumulates. Same for FWD dc (raw 0.08, shipped 0.72) and GK yc.
 10. **Re-test volume-dependent goal calibration** and finishing persistence once there are 20+ gameweeks.
 11. **Opponent DC-allowed factor** (`dc_opp_k = 40`, on by default): backtest through GW10 showed a small gain in
     total RMSE but no gain on the dc component itself (see docs/BACKTEST.md). Re-test at 20+ gameweeks and switch
@@ -98,7 +105,8 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 
 ## Known limitations to keep documented
 
-- Ten gameweeks of data; calibration partly fitted to the window it is judged on.
+- Ten gameweeks of data; shipped calibration fitted on the whole window (the walk-forward line is the
+  out-of-sample check, and only its early cutoffs identify the shrinkage strength).
 - Unofficial API; fields can change. Pen counts and some overrides are manual.
 - `legacy/` holds the original exploratory scripts (hard-coded paths, chained). They are a parity reference
   only; do not extend them.
