@@ -3,9 +3,16 @@
 Ordered roughly by priority. Each item says why it matters. "Parity" means: after the change,
 `fplxpts squad/moves/backtest` must reproduce the golden numbers below unless the change is meant to move them.
 
-**Golden numbers (data through GW10, shipped config):** GW11-15 expected points: Rudoni 22.9, Konsa 24.4,
-N.Jackson 26.9, Isak 23.2, Haaland 25.5, Van Hecke 23.3. Backtest: 9,267 player-games, RMSE 2.964
-(calibrated 2.945), time split 2.835 -> 2.826. (Updated when bonus became event-driven; before that:
+**Golden numbers (data through GW10, shipped config):** GW11-15 expected points: Rudoni 22.6, Konsa 24.9,
+N.Jackson 26.7, Isak 23.2, Haaland 25.6, Van Hecke 22.6 (Isak's minutes are overridden by hand in
+`config/squad.example.toml`; without the override, as in the export, he is 24.5). Backtest: 9,267 player-games,
+RMSE 2.964 (calibrated 2.944), time split 2.840 -> 2.827. (Updated when the minutes model started skipping inferred
+injury/suspension absences, `absence_starts_before = 2`; the six squad numbers did not move, before that: Isak
+without override 19.7, RMSE 2.962 / 2.943, 2.837 -> 2.827. Updated when strength-of-schedule team ratings were switched on,
+`team_sos_iters = 20`; before that: Rudoni 22.9, Konsa 24.7, N.Jackson 26.9, Isak 23.2, Haaland 25.5,
+Van Hecke 23.1, RMSE 2.962 / 2.943, 2.834 -> 2.825. Updated when the opponent DC-allowed factor was switched on,
+`dc_opp_k = 40`; before that: Rudoni 22.9, Konsa 24.4, N.Jackson 26.9, Isak 23.2, Haaland 25.5, Van Hecke 23.3,
+RMSE 2.964 / 2.945, 2.835 -> 2.826. Updated when bonus became event-driven; before that:
 Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2, RMSE 2.962 / 2.943, 2.840 -> 2.827.)
 
 ## P0: make it a solid, testable project (first session)
@@ -27,9 +34,13 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
    only out-of-sample error, instead of full-sample factors.
 2. **Team news in team ratings.** Ratings use season-long xG that still includes players who are now
    injured/suspended (key attackers or defenders). Adjust attack/defence for who is actually available.
-3. **Better minutes model.** Currently the mean of the last 5 games. Use starts vs sub appearances,
-   rotation after cup/European weeks, and fixture congestion (Dec 26 - Jan 1 run). Backtest shows minutes
-   over-projected by 6-14%.
+3. **Better minutes model.** The mean of the last 5 games, now skipping inferred injury/suspension absences
+   (done, `absence_starts_before = 2`: a run of 0-minute games is dropped when the player started his last two
+   played games before it and his first game back; see docs/BACKTEST.md). Remaining: starts vs sub appearances,
+   rotation after cup/European weeks, fixture congestion (Dec 26 - Jan 1 run), a better way to tell rotation from
+   injury than the start/bench/start pattern (FPL rows have no injury flag), and the general over-projection
+   (predicted minutes are ~8 per game too high, 67 vs 58, before calibration; the skip rule adds ~0.6). Re-check the
+   rule at 20+ gameweeks, ideally with historical availability flags in the backtest.
 4. **Suspension risk.** Yellow-card accumulation (5 by GW19 -> ban) is only a -1 point cost today.
 5. **Haul probability for captaincy.** Replace expected points with a distribution per player
    (Poisson/negative-binomial per component) and report P(>=10) and P(<=2) alongside the mean.
@@ -44,6 +55,17 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 9. **Forward assists factor (2.04)** rests on ~850 player-games; stabilise it (stronger shrinkage or
    a model of forward xA) and re-check as data accumulates.
 10. **Re-test volume-dependent goal calibration** and finishing persistence once there are 20+ gameweeks.
+11. **Opponent DC-allowed factor** (`dc_opp_k = 40`, on by default): backtest through GW10 showed a small gain in
+    total RMSE but no gain on the dc component itself (see docs/BACKTEST.md). Re-test at 20+ gameweeks and switch
+    it off (`dc_opp_k = 0`) if the total-RMSE gain does not persist.
+12. **Damped opponent xG for clean sheets** (`opp_xg_gamma`, implemented, 1.0 = off): flattens the over-strong
+    clean-sheet response to the opponent in-sample, but gamma chosen on early rounds does worse on later rounds and
+    stronger `team_shrink_k` is no better (see docs/BACKTEST.md). Re-test at 20+ gameweeks, perhaps with gamma
+    depending on games played.
+13. **Strength-of-schedule team ratings** (`team_sos_iters = 20`, on by default): opponent-adjusted attack/defence
+    ratings improved team-level opponent-xG error (vs match xG) slightly and were neutral on goals and total RMSE,
+    with a small, non-significant worsening of the time split (see docs/BACKTEST.md). Re-test at 20+ gameweeks;
+    consider adjusting for the opponent's rating at the time of the match rather than its current rating.
 
 ## P2: planner features
 

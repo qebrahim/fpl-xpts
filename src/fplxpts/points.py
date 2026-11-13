@@ -9,7 +9,7 @@ import math
 
 from .bonus import expected_bonus
 from .constants import COMPONENTS, CS_PTS, DC_THRESHOLD, GOAL_PTS
-from .teams import TeamState, opp_of
+from .teams import TeamState, damped_opp_xg, opp_of
 
 
 def gc_penalty(lam: float) -> float:
@@ -21,14 +21,20 @@ def gc_penalty(lam: float) -> float:
     return s
 
 
+def dc_hit_vs(hit: float, opp_factor: float, faced_factor: float) -> float:
+    """Player's DC hit probability against one opponent: own rate x opponent factor / factor of past opponents."""
+    return min(1.0, hit * opp_factor / faced_factor)
+
+
 def components(p: dict, venue: str, opp: int, st: TeamState) -> dict:
     """Expected points by component for player rates `p` playing `opp` at `venue` ('h' or 'a')."""
     lg, T, pos, mf = st.lg, p["team"], p["pos"], p["mf"]
     att_m = lg[venue] * st.dfn[opp] / st.pn_att[T]          # attacking environment vs the one the rates were earned in
     opp_xg = lg[opp_of(venue)] * st.att[opp] * st.dfn[T]     # opponent's expected goals vs this team
+    cs_xg = damped_opp_xg(lg[opp_of(venue)], st.att[opp], st.dfn[T], st.opp_xg_gamma)  # damped, for clean sheets
     opp_m = lg[opp_of(venue)] * st.att[opp] / st.pn_opp[T]
     goals, assists = p["xg90"] * mf * att_m, p["xa90"] * mf * att_m
-    p_cs = math.exp(-opp_xg) * p["p60"]                      # P(clean sheet and 60+ minutes)
+    p_cs = math.exp(-cs_xg) * p["p60"]                        # P(clean sheet and 60+ minutes)
     saves = p["sav90"] * mf * opp_m if pos == 1 else 0.0
     return {
         "app": p["app"],
@@ -36,7 +42,7 @@ def components(p: dict, venue: str, opp: int, st: TeamState) -> dict:
         "assist": assists * 3,
         "cs": p_cs * CS_PTS[pos],
         "gc": -(gc_penalty(opp_xg * mf) if pos in (1, 2) else 0.0),
-        "dc": 2 * p["hit"] * p["p60"],
+        "dc": 2 * dc_hit_vs(p["hit"], st.dc_opp.get(opp, 1.0), st.pn_dc.get(T, 1.0)) * p["p60"],
         "bonus": expected_bonus(p["bon_base90"], p["bon_k"], mf, {"goal": goals, "assist": assists, "cs": p_cs, "sav": saves}),
         "sav": saves / 3,
         "yc": -p["yc90"] * mf,

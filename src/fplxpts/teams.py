@@ -1,10 +1,11 @@
-"""Team attack/defence ratings from per-fixture xG, venue-normalised, recency-weighted and shrunk."""
+"""Team attack/defence ratings from per-fixture xG: venue-normalised, schedule-adjusted, recency-weighted, shrunk."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .config import Config
 from .data import Season
+from .players import counts_for_dc, dc_hit, pool_hit_rates, posgrp
 
 opp_of = lambda v: "a" if v == "h" else "h"
 
@@ -16,35 +17,118 @@ class TeamState:
     dfn: dict      # team id -> defence rating (xG conceded relative to average; lower is better)
     pn_att: dict   # average attack environment each team's players earned their rates in
     pn_opp: dict   # average opposing attack each team faced (used for goalkeeper saves)
+    dc_opp: dict = field(default_factory=dict)  # team id -> DC hits its opponents make vs expectation (1.0 = average)
+    pn_dc: dict = field(default_factory=dict)   # average dc_opp of the opponents each team has faced
+    opp_xg_gamma: float = 1.0  # damping of the opponent-xG matchup used for clean sheets (1.0 = undamped)
 
 
-def team_state(season: Season, cut: int, cfg: Config) -> TeamState:
-    fc = [x for x in season.fin if x["ev"] <= cut]
-    lg = {"h": sum(x["xg_h"] for x in fc) / len(fc), "a": sum(x["xg_a"] for x in fc) / len(fc)}
+def damped_opp_xg(lg_v: float, att_opp: float, dfn_team: float, gamma: float = 1.0) -> float:
+    """Opponent's expected goals, with the matchup multiplier pulled towards 1 (the league venue average).
+
+    gamma = 1 is the plain product lg_v * att_opp * dfn_team; gamma < 1 shrinks it geometrically.
+    """
+    return lg_v * (att_opp * dfn_team) ** gamma
+
+
+def shrink_ratio(obs: float, exp: float, k: float) -> float:
+    """Observed / expected count, shrunk towards 1.0 with k pseudo-units of expectation."""
+    return (obs + k) / (exp + k)
+
+
+def dc_obs_exp(season: Season, cut: int, min_live_minutes: float) -> dict:
+    """team id -> (DC hits made against it, hits expected from league position-group rates), rounds <= cut.
+
+    Counts outfield players' 60+ minute appearances, the same population players.py builds hit rates from.
+    """
+    els = season.elements
+    H = {p: [r for r in rows if r["round"] <= cut] for p, rows in season.hist.items()}
+    live = [p for p in H if sum(r["minutes"] for r in H[p]) >= min_live_minutes]
+    pool = pool_hit_rates(H, live, els)
+    out: dict = {}
+    for p in live:
+        pos = els[p]["element_type"]
+        if pos == 1:
+            continue
+        for r in H[p]:
+            if counts_for_dc(r):
+                o, e = out.get(r["opponent_team"], (0.0, 0.0))
+                out[r["opponent_team"]] = (o + dc_hit(r, pos), e + pool[posgrp(pos)])
+    return out
+
+
+def dc_opp_factors(obs_exp: dict, k: float) -> dict:
+    """team id -> shrunk 'DC allowed' factor; k <= 0 switches the feature off (no factors, i.e. all 1.0)."""
+    if k <= 0:
+        return {}
+    return {t: shrink_ratio(o, e, k) for t, (o, e) in obs_exp.items()}
+
+
+MIN_RATING = 0.2  # floor on an opponent rating used as a divisor (guards against near-zero ratings)
+
+
+def game_log(fin: list) -> dict:
+    """team id -> chronological games [(ev, opp, venue, xg_for, xg_against)] from finished fixtures."""
     log: dict = {}
-    for x in fc:
+    for x in sorted(fin, key=lambda x: x["ev"]):
         log.setdefault(x["h"], []).append((x["ev"], x["a"], "h", x["xg_h"], x["xg_a"]))
         log.setdefault(x["a"], []).append((x["ev"], x["h"], "a", x["xg_a"], x["xg_h"]))
-    k = cfg.model.team_shrink_k
+    return log
 
-    def ratings(hl):
+
+def recency_weights(n: int, hl: float | None) -> list:
+    """Weights for n chronological games, halving every hl games back (None = equal weights)."""
+    return [1.0 if hl is None else 0.5 ** ((n - 1 - i) / hl) for i in range(n)]
+
+
+def ratings(log: dict, lg: dict, teams, hl: float | None, k: float, sos_iters: int = 0) -> tuple:
+    """Attack and defence ratings (1.0 = league average), recency-weighted and shrunk with k pseudo-games.
+
+    Each game's xG for (against) is divided by the league venue average and, when sos_iters > 0, also by the
+    opponent's defence (attack) rating, so a team is not flattered by a soft schedule. The opponent ratings
+    come from the previous pass (fixed-point iteration, sos_iters passes); each pass is rescaled so the league
+    mean of each rating stays at its unadjusted value. sos_iters = 0 is the plain venue-normalised average.
+    """
+    def one_pass(opp_att: dict, opp_dfn: dict) -> tuple:
         att, dfn = {}, {}
-        for t in season.teams:
+        for t in teams:
             lt = log.get(t, [])
             n = len(lt)
             if n == 0:
                 att[t] = dfn[t] = 1.0
                 continue
-            ws = [1.0 if hl is None else 0.5 ** ((n - 1 - i) / hl) for i in range(n)]
+            ws = recency_weights(n, hl)
             sw = sum(ws)
-            f_ = sum(w * (r[3] / lg[r[2]]) for w, r in zip(ws, lt)) / sw
-            a_ = sum(w * (r[4] / lg[opp_of(r[2])]) for w, r in zip(ws, lt)) / sw
+            f_ = sum(w * (r[3] / (lg[r[2]] * max(opp_dfn.get(r[1], 1.0), MIN_RATING))) for w, r in zip(ws, lt)) / sw
+            a_ = sum(w * (r[4] / (lg[opp_of(r[2])] * max(opp_att.get(r[1], 1.0), MIN_RATING))) for w, r in zip(ws, lt)) / sw
             att[t] = (f_ * n + k) / (n + k)
             dfn[t] = (a_ * n + k) / (n + k)
         return att, dfn
 
-    att0, dfn0 = ratings(None)   # past-opponent norms use unweighted ratings, matching how player rates were earned
+    att0, dfn0 = one_pass({}, {})
+    att, dfn = att0, dfn0
+    for _ in range(sos_iters):
+        att, dfn = one_pass(att, dfn)
+        att, dfn = rescale_mean(att, att0), rescale_mean(dfn, dfn0)
+    return att, dfn
+
+
+def rescale_mean(r: dict, ref: dict) -> dict:
+    """Scale ratings r so their mean equals the mean of ref."""
+    s = sum(ref.values()) / sum(r.values())
+    return {t: v * s for t, v in r.items()}
+
+
+def team_state(season: Season, cut: int, cfg: Config) -> TeamState:
+    fc = [x for x in season.fin if x["ev"] <= cut]
+    lg = {"h": sum(x["xg_h"] for x in fc) / len(fc), "a": sum(x["xg_a"] for x in fc) / len(fc)}
+    log = game_log(fc)
+    m = cfg.model
+    # past-opponent norms use unweighted ratings, matching how player rates were earned; they are schedule-
+    # adjusted the same way as the forward ratings so the numerator and denominator of att_m / opp_m agree
+    att0, dfn0 = ratings(log, lg, season.teams, None, m.team_shrink_k, m.team_sos_iters)
     pn_att = {t: sum(lg[r[2]] * dfn0[r[1]] for r in log[t]) / len(log[t]) for t in log}
     pn_opp = {t: sum(lg[opp_of(r[2])] * att0[r[1]] for r in log[t]) / len(log[t]) for t in log}
-    att, dfn = ratings(cfg.model.team_halflife)
-    return TeamState(lg, att, dfn, pn_att, pn_opp)
+    att, dfn = ratings(log, lg, season.teams, m.team_halflife, m.team_shrink_k, m.team_sos_iters)
+    dc_opp = dc_opp_factors(dc_obs_exp(season, cut, m.min_live_minutes), m.dc_opp_k)
+    pn_dc = {t: sum(dc_opp.get(r[1], 1.0) for r in log[t]) / len(log[t]) for t in log} if dc_opp else {}
+    return TeamState(lg, att, dfn, pn_att, pn_opp, dc_opp, pn_dc, m.opp_xg_gamma)

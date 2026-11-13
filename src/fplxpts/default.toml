@@ -6,6 +6,7 @@
 [model]
 team_halflife = 3.0          # recency half-life (games) for team attack/defence ratings
 team_shrink_k = 3.0          # pseudo-games shrinking team ratings towards league average
+team_sos_iters = 20          # strength-of-schedule passes: divide xG by opponent rating (fixed point); 0 = off
 form_halflife = 4.0          # recency half-life (games) for player rates; set to 0 for season-long
 prior_min = 450.0            # pseudo-minutes of the position-average prior
 prior_apps = 3.0             # pseudo-appearances for the defensive-contribution hit rate prior
@@ -15,6 +16,10 @@ prior_min_season_minutes = 450.0   # ignore a past season with fewer minutes tha
 min_live_minutes = 90.0      # players need this many minutes before they are projected
 pen_xg = 0.76                # xG value of one penalty
 pen_share_xg = 0.10          # normal forward-looking penalty xG per team game, given to the primary taker
+opp_xg_gamma = 1.0           # exponent on the opponent-xG matchup (att_opp*dfn_team) for clean sheets; <1 damps it
+dc_opp_k = 40.0              # opponent 'DC allowed' factor shrinkage (expected hits); 0 = off. See docs/BACKTEST.md
+absence_starts_before = 2    # minutes model skips a run of 0-minute games (inferred injury/suspension) when the player
+absence_starts_after = 1     # started his last 2 played games before it and his first game back; 0 = off
 
 [model.prior_seasons]        # which past seasons feed the prior, and their weight
 "2025/26" = 1.0

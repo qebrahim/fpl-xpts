@@ -12,12 +12,14 @@ the errors it finds.
 
 ## What it does
 
-- **Team ratings** from per-fixture xG (derived from goalkeeper xGC), venue-normalised, recency-weighted and
-  shrunk towards the league average.
+- **Team ratings** from per-fixture xG (derived from goalkeeper xGC), venue-normalised, adjusted for strength of
+  schedule (each game's xG is divided by the opponent's defence or attack rating, iterated to a fixed point),
+  recency-weighted and shrunk towards the league average.
 - **Bonus by how it is earned:** projected from the goals, assists, clean sheet and saves expected in each
   fixture (marginal bonus per event by position) plus a player baseline, not a flat rate.
 - **Player rates** for xG, xA, bonus baseline, saves, cards, minutes and defensive contribution, shrunk towards a
-  position prior and a small last-season prior.
+  position prior and a small last-season prior. The minutes model skips games an established starter missed
+  through (inferred) injury or suspension once he is back in the side; current availability comes from FPL's flags.
 - **Penalties handled explicitly:** taken penalties are stripped from history and each club's primary taker
   gets a normal forward-looking share, so a lucky run of penalties is not extrapolated.
 - **Expected points by component** (appearance, goals, assists, clean sheet, goals conceded, defensive
@@ -41,9 +43,9 @@ fplxpts backtest --fit                                               # replay th
 Example (`fplxpts squad --swap Schade:Rudoni --weeks 1`):
 
 ```
-GW11  5-2-3  XI 51.9  (C Isak, VC N.Jackson)
-   XI   : Raya 4.5, Van Hecke 5.0, Muharemović 4.5, De Cuyper 4.3, Thomas 4.2, Calafiori 4.0, Rudoni 4.9, Tavernier 3.7, Isak 5.8, N.Jackson 5.5, Haaland 5.4
-   Bench: Mbeumo 3.5, Rogers 3.4, Barnes 3.2, Palmer 0.0
+GW11  5-2-3  XI 51.2  (C Isak, VC Haaland)
+   XI   : Raya 4.4, Van Hecke 4.9, Muharemović 4.5, De Cuyper 4.4, Thomas 4.2, Calafiori 4.1, Rudoni 5.2, Tavernier 3.7, Isak 5.7, Haaland 5.4, N.Jackson 4.9
+   Bench: Mbeumo 3.5, Rogers 3.2, Barnes 3.1, Palmer 0.0
 ```
 
 ## How well does it work?
@@ -52,13 +54,13 @@ Walk-forward over GW1-9 starts, predicting the next 5 rounds (9,267 player-games
 
 | Predictor | RMSE |
 |---|---|
-| Model, calibrated (in-sample) | 2.945 |
+| Model, calibrated (in-sample) | 2.944 |
 | Model, uncalibrated | 2.964 |
 | Season points-per-game so far | 3.332 |
 | Last-four-games form | 3.365 |
 
-Calibration factors fitted on early rounds and tested on later ones: RMSE 2.835 -> 2.826 and bias
-+0.23 -> -0.05. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
+Calibration factors fitted on early rounds and tested on later ones: RMSE 2.840 -> 2.827 and bias
++0.26 -> -0.02. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
 See [docs/BACKTEST.md](docs/BACKTEST.md) for the method and what the backtest found (for example, defender
 goal threat was over-projected by roughly 2x, and past finishing under-performance did not persist).
 

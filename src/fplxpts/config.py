@@ -14,6 +14,7 @@ _DEFAULT = Path(__file__).with_name("default.toml")
 class ModelCfg:
     team_halflife: float = 3.0
     team_shrink_k: float = 3.0
+    team_sos_iters: int = 0   # strength-of-schedule passes for team ratings; 0 = off
     form_halflife: float | None = 4.0
     prior_min: float = 450.0
     prior_apps: float = 3.0
@@ -23,6 +24,10 @@ class ModelCfg:
     min_live_minutes: float = 90.0
     pen_xg: float = 0.76
     pen_share_xg: float = 0.10
+    dc_opp_k: float = 0.0   # pseudo expected-hits shrinking the opponent DC-allowed factor; 0 = off
+    opp_xg_gamma: float = 1.0  # exponent on the opponent-xG matchup multiplier for clean sheets; <1 damps it
+    absence_starts_before: int = 0  # starts needed before a 0-minute run to treat it as an injury absence; 0 = off
+    absence_starts_after: int = 1   # starts needed on return before that run is dropped from the minutes window
     prior_seasons: dict = field(default_factory=lambda: {"2025/26": 1.0, "2024/25": 0.5})
 
 

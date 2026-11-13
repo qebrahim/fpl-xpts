@@ -7,7 +7,7 @@ optimiser. Pure Python (>=3.11), only dependency is numpy (backtest). Data comes
 ## Commands
 ```bash
 pip install -e ".[dev]"
-pytest                      # offline unit tests (26)
+pytest                      # offline unit tests (53)
 ruff check .
 fplxpts backtest            # needs network (cached in .cache/)
 fplxpts squad --squad config/squad.example.toml --swap Schade:Rudoni
