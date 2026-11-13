@@ -12,3 +12,10 @@ config/squad.toml
 .DS_Store
 web/node_modules/
 web/dist/
+
+# secrets: real values live in .env (never committed); .env.example documents the keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
