@@ -1,7 +1,6 @@
 import type { Position } from './types';
 
-// TODO: replace with the public repository URL before deploying.
-export const GITHUB_URL = 'https://github.com/';
+export const GITHUB_URL = 'https://github.com/qebrahim/fpl-xpts';
 
 export const DATA_URL = `${import.meta.env.BASE_URL}data/projections.json`;
 
