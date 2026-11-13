@@ -1,0 +1,56 @@
+# Penalty goals scored this season, by player. Read by `fplxpts export --pens` (loaded like a squad file).
+# FPL exposes only penalties MISSED, not penalties scored, so these counts are maintained by hand weekly.
+# Source used during development: a public "Premier League penalty goals" ranking page.
+
+[[pen_goals]]
+name = "Le Fée"
+team = "SUN"
+n = 3
+[[pen_goals]]
+name = "Groß"
+team = "BHA"
+n = 2
+[[pen_goals]]
+name = "Fernandes"
+team = "MUN"
+n = 2
+[[pen_goals]]
+name = "Szoboszlai"
+team = "LIV"
+n = 1
+[[pen_goals]]
+name = "McGinn"
+team = "AVL"
+n = 1
+[[pen_goals]]
+name = "Nketiah"
+team = "CRY"
+n = 1
+[[pen_goals]]
+name = "McBurnie"
+team = "HUL"
+n = 1
+[[pen_goals]]
+name = "Gibbs-White"
+team = "NFO"
+n = 1
+[[pen_goals]]
+name = "Saka"
+team = "ARS"
+n = 1
+[[pen_goals]]
+name = "Clarke"
+team = "IPS"
+n = 1
+[[pen_goals]]
+name = "Rudoni"
+team = "COV"
+n = 1
+[[pen_goals]]
+name = "Palmer"
+team = "CHE"
+n = 1
+[[pen_goals]]
+name = "Flemming"
+team = "IPS"
+n = 1

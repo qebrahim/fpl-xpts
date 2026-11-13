@@ -1,0 +1,56 @@
+# Default model hyper-parameters and calibration factors.
+# Hyper-parameters were chosen by walk-forward backtest over GW1-10 of 2026/27 (see docs/BACKTEST.md).
+# Calibration factors = mean(actual points) / mean(predicted points) per position and component, fitted
+# on the same window. Refit as the season progresses:  fplxpts backtest --fit
+
+[model]
+team_halflife = 3.0          # recency half-life (games) for team attack/defence ratings
+team_shrink_k = 3.0          # pseudo-games shrinking team ratings towards league average
+form_halflife = 4.0          # recency half-life (games) for player rates; set to 0 for season-long
+prior_min = 450.0            # pseudo-minutes of the position-average prior
+prior_apps = 3.0             # pseudo-appearances for the defensive-contribution hit rate prior
+prior_lambda = 0.15          # weight of last-season rates (fraction of last-season minutes, capped)
+prior_cap_minutes = 2500.0
+prior_min_season_minutes = 450.0   # ignore a past season with fewer minutes than this
+min_live_minutes = 90.0      # players need this many minutes before they are projected
+pen_xg = 0.76                # xG value of one penalty
+pen_share_xg = 0.10          # normal forward-looking penalty xG per team game, given to the primary taker
+
+[model.prior_seasons]        # which past seasons feed the prior, and their weight
+"2025/26" = 1.0
+"2024/25" = 0.5
+
+[calibration.GK]
+app = 0.932
+cs = 1.158
+gc = 0.818
+bonus = 0.793
+sav = 0.601
+yc = 0.843
+
+[calibration.DEF]
+app = 0.861
+goal = 0.516
+assist = 0.974
+cs = 1.118
+gc = 0.763
+dc = 0.995
+bonus = 0.920
+yc = 1.014
+
+[calibration.MID]
+app = 0.887
+goal = 0.786
+assist = 1.046
+cs = 1.259
+dc = 0.984
+bonus = 0.813
+yc = 1.011
+
+[calibration.FWD]
+app = 0.938
+goal = 0.832
+assist = 2.038
+dc = 0.284
+bonus = 1.057
+yc = 0.705

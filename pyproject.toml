@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fplxpts"
+version = "0.1.0"
+description = "Expected-points model, walk-forward backtest and transfer/lineup optimiser for Fantasy Premier League"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.35", "pandas>=2.0"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+fplxpts = "fplxpts.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fplxpts = ["*.toml"]
+
+[tool.ruff]
+line-length = 140
+src = ["src", "tests"]
+extend-exclude = ["legacy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

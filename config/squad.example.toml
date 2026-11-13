@@ -1,0 +1,136 @@
+# Example squad file. Copy to config/squad.toml (git-ignored) and edit.
+# name is matched against FPL's web_name / second_name; team is the 3-letter code; pos is GK/DEF/MID/FWD.
+
+# players the FPL news flag still lists as doubtful, but you expect to be fully fit.
+# (top-level keys must come BEFORE the first [[players]] table, or TOML attaches them to it)
+assume_fit = ["Calafiori", "Thomas"]
+
+[[players]]
+name = "Raya"
+team = "ARS"
+pos = "GK"
+[[players]]
+name = "Palmer"
+team = "IPS"
+pos = "GK"
+[[players]]
+name = "Van Hecke"
+team = "TOT"
+pos = "DEF"
+[[players]]
+name = "Calafiori"
+team = "ARS"
+pos = "DEF"
+[[players]]
+name = "De Cuyper"
+team = "BHA"
+pos = "DEF"
+[[players]]
+name = "Muharemovic"
+team = "LEE"
+pos = "DEF"
+[[players]]
+name = "Thomas"
+team = "COV"
+pos = "DEF"
+[[players]]
+name = "Tavernier"
+team = "BOU"
+pos = "MID"
+[[players]]
+name = "Rogers"
+team = "CHE"
+pos = "MID"
+[[players]]
+name = "Schade"
+team = "BRE"
+pos = "MID"
+[[players]]
+name = "Mbeumo"
+team = "MUN"
+pos = "MID"
+[[players]]
+name = "Barnes"
+team = "NEW"
+pos = "MID"
+[[players]]
+name = "Jackson"
+team = "AVL"
+pos = "FWD"
+[[players]]
+name = "Haaland"
+team = "MCI"
+pos = "FWD"
+[[players]]
+name = "Isak"
+team = "LIV"
+pos = "FWD"
+
+# override the minutes model (mf = share of 90 played, app = appearance points, p60 = P(>=60 min))
+[overrides.Calafiori]
+mf = 0.95
+app = 1.9
+p60 = 0.9
+[overrides.Thomas]
+mf = 0.94
+app = 1.9
+p60 = 0.88
+[overrides.Isak]          # returning from injury: ~88% of minutes
+mf = 0.88
+app = 1.85
+p60 = 0.85
+
+# penalty GOALS scored this season (FPL exposes only penalties missed). Update weekly.
+# Source used during development: a public "Premier League penalty goals" ranking page.
+[[pen_goals]]
+name = "Le Fée"
+team = "SUN"
+n = 3
+[[pen_goals]]
+name = "Groß"
+team = "BHA"
+n = 2
+[[pen_goals]]
+name = "Fernandes"
+team = "MUN"
+n = 2
+[[pen_goals]]
+name = "Szoboszlai"
+team = "LIV"
+n = 1
+[[pen_goals]]
+name = "McGinn"
+team = "AVL"
+n = 1
+[[pen_goals]]
+name = "Nketiah"
+team = "CRY"
+n = 1
+[[pen_goals]]
+name = "McBurnie"
+team = "HUL"
+n = 1
+[[pen_goals]]
+name = "Gibbs-White"
+team = "NFO"
+n = 1
+[[pen_goals]]
+name = "Saka"
+team = "ARS"
+n = 1
+[[pen_goals]]
+name = "Clarke"
+team = "IPS"
+n = 1
+[[pen_goals]]
+name = "Rudoni"
+team = "COV"
+n = 1
+[[pen_goals]]
+name = "Palmer"
+team = "CHE"
+n = 1
+[[pen_goals]]
+name = "Flemming"
+team = "IPS"
+n = 1

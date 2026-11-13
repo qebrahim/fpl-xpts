@@ -1,0 +1,77 @@
+"""Configuration: model hyper-parameters, calibration factors and the user's squad file."""
+from __future__ import annotations
+
+import tomllib
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+
+from .constants import POS_ID
+
+_DEFAULT = Path(__file__).with_name("default.toml")
+
+
+@dataclass(frozen=True)
+class ModelCfg:
+    team_halflife: float = 3.0
+    team_shrink_k: float = 3.0
+    form_halflife: float | None = 4.0
+    prior_min: float = 450.0
+    prior_apps: float = 3.0
+    prior_lambda: float = 0.15
+    prior_cap_minutes: float = 2500.0
+    prior_min_season_minutes: float = 450.0
+    min_live_minutes: float = 90.0
+    pen_xg: float = 0.76
+    pen_share_xg: float = 0.10
+    prior_seasons: dict = field(default_factory=lambda: {"2025/26": 1.0, "2024/25": 0.5})
+
+
+@dataclass(frozen=True)
+class Config:
+    model: ModelCfg
+    calibration: dict  # {(pos_id, component): factor}
+
+    def with_model(self, **kw) -> Config:
+        return replace(self, model=replace(self.model, **kw))
+
+    def without_calibration(self) -> Config:
+        return replace(self, calibration={})
+
+
+def load_config(path: str | Path | None = None) -> Config:
+    with open(path or _DEFAULT, "rb") as fh:
+        raw = tomllib.load(fh)
+    m = dict(raw.get("model", {}))
+    if m.get("form_halflife") == 0:
+        m["form_halflife"] = None
+    cal = {}
+    for pos, comps in raw.get("calibration", {}).items():
+        for comp, v in comps.items():
+            cal[(POS_ID[pos], comp)] = float(v)
+    return Config(model=ModelCfg(**m), calibration=cal)
+
+
+@dataclass
+class SquadCfg:
+    """The user's 15 players plus per-player assumptions.
+
+    players:   [(name, team, pos)]     name is matched against web_name / second_name
+    overrides: {name: {mf, app, p60}}  e.g. returning from injury and assumed back to full minutes
+    assume_fit:[name]                  ignore FPL's chance-of-playing flag for these players
+    pen_goals: [(name, team, n)]       penalty GOALS scored this season (FPL does not expose them)
+    """
+    players: list = field(default_factory=list)
+    overrides: dict = field(default_factory=dict)
+    assume_fit: list = field(default_factory=list)
+    pen_goals: list = field(default_factory=list)
+
+
+def load_squad(path: str | Path) -> SquadCfg:
+    with open(path, "rb") as fh:
+        raw = tomllib.load(fh)
+    return SquadCfg(
+        players=[(p["name"], p["team"], POS_ID[p["pos"]]) for p in raw.get("players", [])],
+        overrides=raw.get("overrides", {}),
+        assume_fit=raw.get("assume_fit", []),
+        pen_goals=[(p["name"], p["team"], int(p["n"])) for p in raw.get("pen_goals", [])],
+    )
