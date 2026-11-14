@@ -11,9 +11,10 @@ GW11-15 expected points: Rudoni 22.7, Konsa 24.7,
 N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5 (Isak's minutes are overridden by hand in
 `config/squad.example.toml`; without the override, as in the export, he is 24.1). Backtest: 9,267 player-games,
 RMSE 2.964 (calibrated in-sample 2.944, walk-forward 2.956), time split 2.840 -> 2.825. The backtest with the shipped
-historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.959 (in-sample 2.939,
-walk-forward 2.951), time split 2.840 -> 2.826. (Odds anchoring, `odds_weight = 0.5`, did not move the odds-off
-numbers; the odds-on backtest line was added then. Updated when the calibration
+historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.954 (in-sample 2.934,
+walk-forward 2.946), time split 2.837 -> 2.823. (Odds anchoring, `odds_weight = 0.5`, and the ratings nudge,
+`odds_ratings_weight = 1`, do not move the odds-off numbers; the odds-on backtest line was added then. Before the nudge
+was switched on the odds-on line was RMSE 2.959 / 2.939 / 2.951, 2.840 -> 2.826. Updated when the calibration
 factors were refitted with pseudo-point shrinkage k = 160 and walk-forward calibration was added; before that:
 Rudoni 22.6, Konsa 24.9, N.Jackson 26.7, Isak 23.2, Haaland 25.6, Van Hecke 22.6, Isak without override 24.5,
 RMSE 2.964 / 2.944, 2.840 -> 2.827. Updated when the minutes model started skipping inferred
@@ -84,9 +85,9 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 14. **Bookmaker odds** (`odds.py`, `odds_weight = 0.5`, on by default; see docs/BACKTEST.md). Done: Football-Data.co.uk
     historical odds in the backtest (pre-match averages, round c+1 only at cutoff c), The Odds API for live
     projections (cached 12 h, fallback to the model when there is no key or no odds), next-round blend of team
-    expected goals on both sides. Tested and shipped off: the ratings nudge (`odds_ratings_weight`, odds as extra
-    games in the team ratings), which also improved rounds 2-5 ahead significantly; switch it on (b = 1) if it holds
-    at 20+ gameweeks. Remaining: re-test w and b with more gameweeks; anchor GW+2 fixtures when the live feed has
+    expected goals on both sides. The ratings nudge (`odds_ratings_weight = 1`, odds as extra
+    games in the team ratings; switched on after being tested and shipped off), which also improved rounds 2-5 ahead
+    significantly; re-check that it holds at 20+ gameweeks. Remaining: re-test w and b with more gameweeks; anchor GW+2 fixtures when the live feed has
     them (needs a backtest with odds taken that far ahead); Asian handicap / exact totals lines; record the fetch
     time relative to kickoff (closing odds were clearly better than the pre-match averages); add the
     `ODDS_API_KEY` repository secret.

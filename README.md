@@ -84,7 +84,8 @@ Walk-forward over GW1-9 starts, predicting the next 5 rounds (9,267 player-games
 | Last-four-games form | 3.365 |
 
 These are without bookmaker odds (`--no-odds`); with the shipped next-round odds anchoring (pre-match odds,
-only those available before each round) they are 2.951 walk-forward, 2.939 in-sample, 2.959 uncalibrated.
+only those available before each round, `odds_weight = 0.5`, plus the ratings nudge `odds_ratings_weight = 1`) they are
+2.946 walk-forward, 2.934 in-sample, 2.954 uncalibrated (time split 2.837 -> 2.823).
 The in-sample line uses factors fitted on the same rows; the walk-forward line refits them at each cutoff using
 only outcomes known by then (cutoff 1 has nothing to fit on and stays uncalibrated). Factors fitted on early
 rounds and tested on later ones: RMSE 2.840 -> 2.825 and bias +0.26 -> +0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.

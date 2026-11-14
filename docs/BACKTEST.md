@@ -29,8 +29,9 @@ outcomes known at that cutoff, see below) and a single **time split** (fit on ta
 | Naive: last-four form | 3.365 | | |
 
 The three model rows are without bookmaker odds (`fplxpts backtest --no-odds`). With the shipped odds anchoring
-(next round only, pre-match odds, see the section below) they are 2.959 / 2.939 / 2.951 (bias +0.29 / +0.03 / +0.14,
-top-12 4.68 / 4.68 / 4.58), time split 2.840 -> 2.826.
+(next round only, pre-match odds, blend `odds_weight = 0.5` plus ratings nudge `odds_ratings_weight = 1`, see the section
+below) they are 2.954 / 2.934 / 2.946 (bias +0.30 / +0.04 / +0.14, top-12 4.71 / 4.87 / 4.72), time split 2.837 -> 2.823.
+(With the blend alone, before the nudge was switched on: 2.959 / 2.939 / 2.951, top-12 4.68 / 4.68 / 4.58, 2.840 -> 2.826.)
 
 Top-12 picks (average actual points of the 12 highest-projected players per cutoff and round): uncalibrated 4.65,
 in-sample calibrated 4.57, walk-forward 4.54.
@@ -328,7 +329,7 @@ app calibration factors would move by about 1% on a refit (actual/predicted app:
 rotation pattern looks the same as a one-game injury. Effect at GW10: no squad-example player moves (Isak's minutes
 are overridden there); Isak without the override 19.7 -> 24.5 over GW11-15.
 
-## Bookmaker odds as an anchor for team goals (tested, shipped on: next-round blend, w = 0.5)
+## Bookmaker odds as an anchor for team goals (tested, shipped on: next-round blend w = 0.5, ratings nudge b = 1)
 
 Idea: bookmaker prices for a match carry information the xG ratings do not (team news, lineups, market
 consensus). A scratch test had found odds-implied goals beat the model's next-round team prediction on clean
@@ -449,10 +450,11 @@ Readings:
 
 **Decision: shipped on with A, both sides, w = 0.5** (`odds_weight = 0.5`, `odds_side = "both"`): the simplest variant
 that is better out of sample on the next-round rows without being worse overall (the decision rule set before the
-test). B is implemented and tested but **shipped off** (`odds_ratings_weight = 0`) because it is the more complex
-change; the numbers above say it adds a significant further gain (A 0.5 + B 1: all rows walk-forward 2.9457 vs
-2.9508) and it is the first candidate to switch on. Calibration factors were not refitted (bias unchanged).
-`fplxpts backtest` now uses the historical odds by default (walk-forward RMSE 2.951 vs 2.956 without); `--no-odds`
+test). B was first implemented and tested but shipped off because it is the more complex change; the numbers above
+show it adds a significant further gain (A 0.5 + B 1: all rows walk-forward 2.9457 vs 2.9508), and it was then
+**switched on at b = 1** (`odds_ratings_weight = 1.0`). The shipped `fplxpts backtest` now gives 2.954 / 2.934 / 2.946
+(uncalibrated / in-sample / walk-forward), time split 2.837 -> 2.823, top-12 4.71 / 4.87 / 4.72, matching the A 0.5 + B 1 row. Calibration factors were not refitted (bias unchanged).
+`fplxpts backtest` now uses the historical odds by default (walk-forward RMSE 2.946 vs 2.956 without); `--no-odds`
 reproduces the old lines and `--closing-odds` the upper bound.
 
 Live projections use The Odds API (UK bookmakers, h2h and totals markets, each bookmaker de-vigged then averaged;
