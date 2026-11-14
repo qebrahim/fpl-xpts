@@ -1,5 +1,9 @@
 """Command line interface:  fplxpts {project,squad,moves,backtest,export}
 
+`backtest --season 2024-25` (repeatable, or `all`) replays a past season from the community archive (archive.py).
+`backtest --prior-season 2025-26` (or `previous`) shrinks the walk-forward / fitted calibration factors towards that
+past season's full-season factors (fitted with the current settings) instead of towards 1.0; off by default.
+
 Bookmaker odds (odds.py) are used when the odds settings in the model config are on: live odds from The Odds API for
 project/squad/moves/export (key from ODDS_API_KEY or .env; a missing key or failed request falls back to the model's
 own numbers with one status line), and historical Football-Data.co.uk odds for backtest. --no-odds turns them off.
@@ -12,6 +16,7 @@ from pathlib import Path
 
 from . import backtest as bt
 from .api import FPLClient
+from .archive import CURRENT, SEASONS, load_archive_season, scoring_rules, shift_prior_seasons, start_year
 from .config import SquadCfg, load_config, load_squad
 from .constants import POS
 from .data import load_season
@@ -123,13 +128,13 @@ def cmd_moves(args):
         print(f"  {name(m.out):<13}-> {name(m.into):<13} {m.gains[0]:+5.1f} | {m.gains[1]:+5.1f} | £{m.cost:+.1f}m")
 
 
-def _historical_odds(cfg, season, args) -> dict | None:
+def _historical_odds(cfg, season, args, ttl: int | None = None) -> dict | None:
     """{round: {(home, away): MatchOdds}} from the Football-Data.co.uk CSV (cached) when the feature is on."""
     if not odds_on(cfg, args):
         return None
     kind = "close" if args.closing_odds else "open"
     try:
-        text = football_data_csv(args.cache, season_code(season.fixtures), ttl=max(args.ttl, 86400))
+        text = football_data_csv(args.cache, season_code(season.fixtures), ttl=ttl or max(args.ttl, 86400))
         rounds = odds_by_round(parse_football_data(text, season.team_ids, kind), season.fixtures)
     except Exception as e:  # noqa: BLE001 - report and run without odds
         print(f"Bookmaker odds unavailable ({type(e).__name__}: {e}); backtest runs with odds off")
@@ -141,35 +146,105 @@ def _historical_odds(cfg, season, args) -> dict | None:
     return rounds
 
 
-def cmd_backtest(args):
-    cfg, season, _ = _load(args)
-    last = season.current_gw
-    cuts = list(range(1, last))
-    odds_rounds = _historical_odds(cfg, season, args)
+def _backtest_report(cfg, season, args, cuts, last, odds_rounds, cal_note: str, split_round: int = 6,
+                     cal_label: str = "calibrated, in-sample", prior: dict | None = None):
+    """Print the walk-forward backtest lines for one season (shared by the live season and archive seasons).
+    `prior`: calibration factors the walk-forward, time-split and --fit factors are shrunk towards (None = 1.0)."""
     rows = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last, odds_rounds)
     print(f"Walk-forward backtest: cutoffs GW{cuts[0]}-{cuts[-1]}, next {args.horizon} rounds, {len(rows)} player-games")
-    m0, m1, wf = bt.metrics(rows), bt.metrics(rows, cfg.calibration), bt.walk_forward_metrics(rows)
+    wf_note = "towards the prior season's factors" if prior else "towards 1.0"
+    m0, m1, wf = bt.metrics(rows), bt.metrics(rows, cfg.calibration), bt.walk_forward_metrics(rows, prior=prior)
     print(f"  model (uncalibrated)          RMSE {m0['rmse']:.3f}  bias {m0['bias']:+.3f}  corr {m0['corr']:.3f}  top-12 picks {bt.top_k_actual(rows):.2f}")
-    print(f"  model (calibrated, in-sample) RMSE {m1['rmse']:.3f}  bias {m1['bias']:+.3f}  corr {m1['corr']:.3f}  top-12 picks {bt.top_k_actual(rows, cfg.calibration):.2f}"
-          "  (shipped factors, fitted on these rows)")
+    print(f"  {'model (' + cal_label + ')':<30}RMSE {m1['rmse']:.3f}  bias {m1['bias']:+.3f}  corr {m1['corr']:.3f}  top-12 picks {bt.top_k_actual(rows, cfg.calibration):.2f}"
+          f"  ({cal_note})")
     print(f"  model (calibrated, walk-fwd)  RMSE {wf['rmse']:.3f}  bias {wf['bias']:+.3f}  corr {wf['corr']:.3f}  top-12 picks {wf['top12']:.2f}"
-          "  (out-of-sample: refit at each cutoff on rounds <= cutoff)")
+          f"  (out-of-sample: refit at each cutoff on rounds <= cutoff, shrunk {wf_note})")
     for kind in ("ppg", "form4"):
         print(f"  naive {kind:<23} RMSE {bt.baseline_rmse(season, kind, cuts, args.horizon, last):.3f}")
-    ts = bt.time_split(rows)
-    print(f"  time split (fit rounds<=6 n={ts['train_n']}, test rounds>6 n={ts['test_n']}): "
+    ts = bt.time_split(rows, split_round, prior=prior)
+    print(f"  time split (fit rounds<={split_round} n={ts['train_n']}, test rounds>{split_round} n={ts['test_n']}): "
           f"RMSE {ts['uncalibrated']['rmse']:.3f} -> {ts['calibrated']['rmse']:.3f}, "
           f"bias {ts['uncalibrated']['bias']:+.3f} -> {ts['calibrated']['bias']:+.3f}")
     if odds_rounds:
         r0 = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last)
-        z0, w0 = bt.metrics(r0), bt.walk_forward_metrics(r0)
+        z0, w0 = bt.metrics(r0), bt.walk_forward_metrics(r0, prior=prior)
         nx = [i for i, r in enumerate(rows) if r.rnd == r.cut + 1]
-        wf1, wf0 = bt.walk_forward_predicted(rows), bt.walk_forward_predicted(r0)
+        wf1, wf0 = bt.walk_forward_predicted(rows, prior=prior), bt.walk_forward_predicted(r0, prior=prior)
         n1 = bt.score([rows[i] for i in nx], wf1[nx])["rmse"], bt.score([r0[i] for i in nx], wf0[nx])["rmse"]
         print(f"  same model, odds off          RMSE {z0['rmse']:.3f}  walk-fwd {w0['rmse']:.3f}; next-round rows walk-fwd "
               f"RMSE {n1[0]:.3f} with odds vs {n1[1]:.3f} without")
     if args.fit:
-        print("\n# paste into src/fplxpts/default.toml\n" + bt.calibration_toml(bt.fit_calibration(rows)))
+        how = "shrunk towards the prior season's factors" if prior else "shrunk towards 1.0"
+        print(f"\n# paste into src/fplxpts/default.toml (k = {bt.CAL_K:g}, {how})\n"
+              + bt.calibration_toml(bt.fit_calibration(rows, prior=prior)))
+
+
+def prior_season_name(value: str, target: str) -> str:
+    """--prior-season value -> archive season name. "previous" = the season before `target` ("2026-27" for the live
+    season). The prior must be an earlier season than the one tested (its factors use that season's outcomes)."""
+    name = (f"{start_year(target) - 1}-{start_year(target) % 100:02d}" if value == "previous"
+            else value.replace("/", "-"))
+    if name not in SEASONS:
+        raise SystemExit(f"no archive season {name!r} for --prior-season; available: {', '.join(SEASONS)} or 'previous'")
+    if start_year(name) >= start_year(target):
+        raise SystemExit(f"--prior-season {name} is not before the backtested season {target}")
+    return name
+
+
+def season_factors(base, args, name: str) -> dict:
+    """Full-season calibration factors of archive season `name` with the current model settings (shrunk towards
+    1.0 with k = CAL_K; the historical odds on unless --no-odds), as `backtest --season NAME --fit` prints them."""
+    season = load_archive_season(args.cache, name)
+    cfg = base.with_model(prior_seasons=shift_prior_seasons(base.model.prior_seasons, name)).without_calibration()
+    odds_rounds = _historical_odds(cfg, season, args, ttl=10**10)
+    last = season.current_gw
+    cuts = [c for c in bt.played_rounds(season) if c < last]
+    cal = bt.fit_calibration(bt.evaluate(season, cfg, cuts, args.horizon, last, odds_rounds))
+    print(f"Calibration prior: {name} full-season factors, current settings, {len(cal)} cells (missing cells count as 1.0)")
+    return cal
+
+
+def cmd_backtest(args):
+    if args.season:
+        return _backtest_archive(args)
+    cfg, season, _ = _load(args)
+    prior = season_factors(cfg, args, prior_season_name(args.prior_season, CURRENT)) if args.prior_season else None
+    last = season.current_gw
+    cuts = list(range(1, last))
+    odds_rounds = _historical_odds(cfg, season, args)
+    _backtest_report(cfg, season, args, cuts, last, odds_rounds, "shipped factors, fitted on these rows", prior=prior)
+
+
+def archive_seasons(names: list[str]) -> list[str]:
+    """--season values -> archive season names ("all" = every available season, newest first)."""
+    out: list[str] = []
+    for n in names:
+        for s in (reversed(SEASONS) if n == "all" else [n.replace("/", "-")]):
+            if s not in SEASONS:
+                raise SystemExit(f"unknown archive season {n!r}; available: {', '.join(SEASONS)} or 'all'")
+            if s not in out:
+                out.append(s)
+    return out
+
+
+def _backtest_archive(args):
+    """Walk-forward backtest of past seasons from the cached community archive (each season on its own: its own
+    teams, players, priors from the season before, scoring rules and Football-Data.co.uk odds file)."""
+    base = load_config(args.config)
+    for i, name in enumerate(archive_seasons(args.season)):
+        season = load_archive_season(args.cache, name)
+        cfg = base.with_model(prior_seasons=shift_prior_seasons(base.model.prior_seasons, name))
+        rules = scoring_rules(name)
+        print(("\n" if i else "") + f"Season {name} (archive: vaastav/Fantasy-Premier-League; prior seasons "
+              f"{cfg.model.prior_seasons}; defensive-contribution points {'on' if rules['dc'] else 'off (not in the rules)'})")
+        prior = season_factors(base, args, prior_season_name(args.prior_season, name)) if args.prior_season else None
+        played = bt.played_rounds(season)
+        last = season.current_gw
+        cuts = [c for c in played if c < last]
+        odds_rounds = _historical_odds(cfg, season, args, ttl=10**10)   # past seasons' files do not change
+        _backtest_report(cfg, season, args, cuts, last, odds_rounds,
+                         "shipped factors, fitted on 2026/27: out of sample here",
+                         split_round=(cuts[0] + last) // 2, cal_label="shipped factors", prior=prior)
 
 
 def main(argv=None):
@@ -222,6 +297,12 @@ def main(argv=None):
     p.add_argument("--fit", action="store_true", help="print freshly fitted calibration factors")
     p.add_argument("--no-odds", action="store_true", help="backtest without bookmaker odds")
     p.add_argument("--closing-odds", action="store_true", help="use closing odds (an upper bound, not realistic)")
+    p.add_argument("--season", action="append",
+                   help=f"past season from the cached archive instead of the live one ({', '.join(SEASONS)}, or 'all'); "
+                        "repeatable")
+    p.add_argument("--prior-season",
+                   help="shrink the walk-forward and --fit calibration towards this past season's full-season factors "
+                        "(fitted with the current settings) instead of 1.0: a season name or 'previous'; off by default")
     p.set_defaults(fn=cmd_backtest)
 
     args = ap.parse_args(argv)

@@ -17,7 +17,8 @@ Sources:
    fetch the one file once into the cache directory and re-read it from disk (``football-data_E0_{yyyy}.csv``),
    re-downloading only when it is older than the ttl. The backtest uses the pre-match average columns
    (``AvgH/AvgD/AvgA``, ``Avg>2.5/Avg<2.5``) as the realistic proxy for odds fetched days before kickoff; the
-   closing columns (``AvgC...``) are only an upper bound.
+   closing columns (``AvgC...``) are only an upper bound. The same loader serves past seasons (``season_code`` of
+   that season's fixtures, e.g. "2425"; ``fplxpts backtest --season``); 2019/20 onwards have the ``Avg*`` columns.
 2. **The Odds API v4** (live, upcoming fixtures): https://the-odds-api.com/liveapi/guides/v4/ . Needs a key in the
    ``ODDS_API_KEY`` environment variable (or a ``.env`` file in the working directory; a non-empty environment
    variable wins). One call (``markets=h2h,totals``, ``regions=uk``) costs 2 credits of the plan's monthly quota, so

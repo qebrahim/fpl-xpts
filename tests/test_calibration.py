@@ -70,3 +70,62 @@ def test_calibration_toml_round_trips_through_load_config(tmp_path):
     path = tmp_path / "cfg.toml"
     path.write_text("[model]\nform_halflife = 4.0\n\n" + calibration_toml(cal))
     assert load_config(path).calibration == pytest.approx(cal)
+
+
+# --- calibration shrunk towards a prior (e.g. last season's factors); off by default -------------------------------
+
+def _mixed_rows():
+    rows = [_row(1, 2, 10.0, 25), _row(1, 3, 10.0, 5), _row(2, 3, 4.0, 2, pos=2, pid=2)]
+    gc = {c: 0.0 for c in COMPONENTS} | {"gc": -1.5}                          # a negative component (DEF gc)
+    rows.append(Row(3, 1, 2, 2, gc, {c: 0 for c in COMPONENTS} | {"gc": -1}, -1))
+    return rows
+
+
+def test_shrunk_ratio_with_target():
+    assert shrunk_ratio(30.0, 60.0, 60.0, 1.0) == shrunk_ratio(30.0, 60.0, 60.0)    # target 1.0 = today's formula
+    assert shrunk_ratio(30.0, 60.0, 60.0, 0.8) == pytest.approx((30 + 48) / 120)
+    assert shrunk_ratio(0.0, 0.0, 160.0, 0.7) == pytest.approx(0.7)                 # no data: the target
+    assert shrunk_ratio(-30.0, -60.0, 60.0, 0.8) == pytest.approx((30 + 48) / 120)  # negative components symmetric
+
+
+def test_fit_calibration_without_prior_is_unchanged():
+    rows = _mixed_rows()
+    for k in (0.0, 20.0, CAL_K):
+        assert fit_calibration(rows, k, prior=None) == fit_calibration(rows, k)
+        assert fit_calibration(rows, k, prior={}) == fit_calibration(rows, k)
+    assert walk_forward_calibration(rows, prior=None) == walk_forward_calibration(rows)
+
+
+def test_fit_calibration_prior_limits():
+    prior = {(4, "goal"): 0.85, (2, "goal"): 0.6, (2, "gc"): 0.9, (1, "sav"): 0.95}
+    # no data: every factor equals the prior (cells with nothing predicted included)
+    assert fit_calibration([], prior=prior) == prior
+    assert walk_forward_calibration([_row(1, 2, 10.0, 5)], prior=prior)[1] == prior    # cutoff 1: nothing known yet
+    # little data: close to the prior; lots of data: close to the raw ratio (0.5 here)
+    few = [_row(1, 2, 2.0, 1)]
+    many = [_row(1, 2, 10.0, 5, pid=i) for i in range(10_000)]
+    assert fit_calibration(few, prior=prior)[(4, "goal")] == pytest.approx((1 + CAL_K * 0.85) / (2 + CAL_K))
+    assert abs(fit_calibration(few, prior=prior)[(4, "goal")] - 0.85) < 0.01
+    assert fit_calibration(many, prior=prior)[(4, "goal")] == pytest.approx(0.5, abs=0.002)
+    # negative component: pseudo-points of 'actual = prior x predicted' on the negative side
+    rows = _mixed_rows()
+    assert fit_calibration(rows, prior=prior)[(2, "gc")] == pytest.approx((-1 - CAL_K * 0.9) / (-1.5 - CAL_K))
+
+
+def test_fit_calibration_missing_prior_cell_behaves_like_one():
+    rows = _mixed_rows()
+    prior = {(2, "goal"): 0.6}                                  # no FWD goal and no DEF gc cell (e.g. dc before 2025/26)
+    with_prior, plain = fit_calibration(rows, prior=prior), fit_calibration(rows)
+    assert with_prior[(4, "goal")] == plain[(4, "goal")] and with_prior[(2, "gc")] == plain[(2, "gc")]
+    assert with_prior[(2, "goal")] != plain[(2, "goal")]
+    assert (4, "assist") not in with_prior                      # nothing predicted, no prior -> no factor (1.0)
+
+
+def test_walk_forward_with_prior_uses_only_known_rounds():
+    prior = {(4, "goal"): 0.8}
+    rows = [_row(1, 2, 10.0, 5), _row(1, 3, 10.0, 40), _row(2, 3, 10.0, 40)]
+    cals = walk_forward_calibration(rows, k=CAL_K, prior=prior)
+    assert cals[1] == prior
+    assert cals[2][(4, "goal")] == pytest.approx((5 + CAL_K * 0.8) / (10 + CAL_K))     # only the round-2 row
+    leaked = rows[:1] + [r._replace(actual={**r.actual, "goal": 0}) for r in rows[1:]]
+    assert walk_forward_calibration(leaked, k=CAL_K, prior=prior)[2] == cals[2]

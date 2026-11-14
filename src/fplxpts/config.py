@@ -12,6 +12,8 @@ _DEFAULT = Path(__file__).with_name("default.toml")
 
 @dataclass(frozen=True)
 class ModelCfg:
+    """Model hyper-parameters. The shipped values live in default.toml; these dataclass defaults are the older or
+    switched-off values (e.g. the half-lives 3/4 and prior 450/0.15 used before 2026-11, features off)."""
     team_halflife: float = 3.0
     team_shrink_k: float = 3.0
     team_sos_iters: int = 0   # strength-of-schedule passes for team ratings; 0 = off

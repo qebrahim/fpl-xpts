@@ -11,8 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_default_config_loads():
     cfg = load_config()
-    assert cfg.model.form_halflife == 4.0 and cfg.model.prior_min == 450
-    assert cfg.calibration[(3, "goal")] == pytest.approx(0.796)   # MID goal factor
+    assert cfg.model.form_halflife == 8.0 and cfg.model.team_halflife == 8.0
+    assert cfg.model.prior_min == 300 and cfg.model.prior_lambda == pytest.approx(0.3)
+    assert cfg.calibration[(3, "goal")] == pytest.approx(0.805)   # MID goal factor
     assert cfg.without_calibration().calibration == {}
 
 

@@ -120,6 +120,13 @@ def minutes_inputs(last: list) -> dict:
     }
 
 
+def current_team(rows: list, default: int) -> int:
+    """The player's club at the cutoff: the `team` of his latest match row when rows carry one (archive seasons,
+    where players can move between clubs mid-season), else `default` (the live API's current team; live match
+    rows have no team field)."""
+    return rows[-1].get("team", default) if rows else default
+
+
 def build_players(season: Season, cut: int, cfg: Config, hist: dict | None = None) -> dict:
     """Rates for every player with enough minutes, using only matches up to gameweek `cut`.
 
@@ -146,8 +153,8 @@ def build_players(season: Season, cut: int, cfg: Config, hist: dict | None = Non
 
     out = {}
     for pid in live:
-        pos, team = els[pid]["element_type"], els[pid]["team"]
         hr = H[pid]
+        pos, team = els[pid]["element_type"], current_team(hr, els[pid]["team"])
         hrw = weigh(hr, m.form_halflife)
         mins = sum(r["minutes"] for r in hrw)
         lxg, lxa, lw = last_season_prior(season.past.get(pid, []), cfg)

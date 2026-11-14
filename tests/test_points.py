@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from fplxpts.points import actual_components, components, gc_penalty, total
+from fplxpts.points import actual_components, components, expected_floor, gc_penalty, save_points, total
 from fplxpts.teams import TeamState
 
 
@@ -55,3 +55,20 @@ def test_actual_components_sum_to_points_for_a_simple_match():
     a = actual_components(row, 2)
     assert a["app"] == 2 and a["goal"] == 6 and a["assist"] == 3 and a["gc"] == -1 and a["dc"] == 2 and a["yc"] == -1
     assert math.isclose(sum(a.values()), 2 + 6 + 3 - 1 + 2 + 2 - 1)
+
+
+def test_save_points_count_whole_threes_not_a_third_per_save():
+    assert save_points(0.0) == pytest.approx(0.0)
+    assert expected_floor(6.0, 3) < 2.0                       # Jensen: E[floor(k/3)] < lam/3
+    for lam in (1.0, 2.0, 3.0, 5.0):
+        assert 0 < save_points(lam) < lam / 3
+    # exact value from the Poisson pmf: P(k>=3) + P(k>=6) + ... for lam = 3
+    pmf = [math.exp(-3.0) * 3.0 ** k / math.factorial(k) for k in range(60)]
+    assert save_points(3.0) == pytest.approx(sum((k // 3) * p for k, p in enumerate(pmf)))
+
+
+def test_keeper_save_component_uses_whole_saves():
+    c = components(player(pos=1), "h", 2, state())
+    saves = 3.0 * 0.9 * (1.2 * 1.0 / 1.35)                    # sav90 * mf * opposing attack vs the one faced
+    assert c["sav"] == pytest.approx(save_points(saves))
+    assert c["sav"] < saves / 3

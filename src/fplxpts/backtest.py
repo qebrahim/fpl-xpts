@@ -31,6 +31,19 @@ Row = namedtuple("Row", "pid cut rnd pos comps actual points")
 TeamRow = namedtuple("TeamRow", "cut rnd fixture team opp venue lam goals")
 
 
+def at_club(p: dict, row: dict) -> dict:
+    """Player rates `p` placed at the club he played for in match `row` (archive rows carry `team`; a player who
+    moved clubs mid-season is projected with his new club's team terms). Live rows have no team: `p` unchanged."""
+    t = row.get("team")
+    return p if t is None or t == p["team"] else {**p, "team": t}
+
+
+def played_rounds(season: Season) -> list:
+    """Rounds with at least one finished fixture with team xG (a fully postponed round, e.g. 2022/23 GW7, is left
+    out so that it does not repeat the previous cutoff)."""
+    return sorted({x["ev"] for x in season.fin})
+
+
 def evaluate(season: Season, cfg: Config, cuts=None, horizon: int = 5, last_gw: int | None = None,
              odds_rounds: dict | None = None) -> list:
     last_gw = last_gw or season.current_gw
@@ -42,7 +55,7 @@ def evaluate(season: Season, cfg: Config, cuts=None, horizon: int = 5, last_gw: 
         for pid, p in players.items():
             for r in season.hist[pid]:
                 if c < r["round"] <= min(c + horizon, last_gw):
-                    comps = components(p, "h" if r["was_home"] else "a", r["opponent_team"], st)
+                    comps = components(at_club(p, r), "h" if r["was_home"] else "a", r["opponent_team"], st)
                     rows.append(Row(pid, c, r["round"], p["pos"], comps, actual_components(r, p["pos"]), r["total_points"]))
     return rows
 
@@ -126,63 +139,76 @@ def baseline_rmse(season: Season, kind: str, cuts, horizon: int, last_gw: int, m
     return math.sqrt(float(np.mean(errs)))
 
 
-def shrunk_ratio(sum_actual: float, sum_pred: float, k: float) -> float:
-    """(sum_actual + k) / (sum_pred + k) with k pseudo-points of 'predicted = actual' (sign-matched for the
-    negative components gc/yc). k = 0 is the raw ratio; as k grows the factor tends to 1.0. The pull towards 1
-    is strong for cells with few expected points (e.g. forward assists) and negligible for large ones."""
+def shrunk_ratio(sum_actual: float, sum_pred: float, k: float, target: float = 1.0) -> float:
+    """(sum_actual + k * target) / (sum_pred + k) with k pseudo-points of 'actual = target x predicted'
+    (sign-matched for the negative components gc/yc). k = 0 is the raw ratio; as k grows the factor tends to
+    `target` (1.0 by default, i.e. no calibration; a prior factor such as last season's otherwise). The pull is
+    strong for cells with few expected points (e.g. forward assists) and negligible for large ones."""
     s = 1.0 if sum_pred > 0 else -1.0
-    return (sum_actual + k * s) / (sum_pred + k * s)
+    return (sum_actual + k * s * target) / (sum_pred + k * s)
 
 
-def fit_calibration(rows, k: float = CAL_K) -> dict:
-    """{(pos, component): factor} from backtest rows; k pseudo-points shrink each factor towards 1.0.
+def fit_calibration(rows, k: float = CAL_K, prior: dict | None = None) -> dict:
+    """{(pos, component): factor} from backtest rows; k pseudo-points shrink each factor towards 1.0, or towards
+    `prior[(pos, component)]` when a prior is given (1.0 for a cell missing from it, e.g. dc from a season without
+    defensive-contribution points). A cell with nothing predicted gets its prior factor (no factor = 1.0 without one).
 
     k = 0 gives the raw mean(actual) / mean(predicted); k = 20 was the method before 2026-11."""
+    prior = prior or {}
     cal = {}
     for pos in POS:
         sub = [r for r in rows if r.pos == pos]
         for comp in COMPONENTS:
             sp, sa = sum(r.comps[comp] for r in sub), sum(r.actual[comp] for r in sub)
             if abs(sp) < 1e-9:
+                if (pos, comp) in prior:
+                    cal[(pos, comp)] = prior[(pos, comp)]
                 continue
-            cal[(pos, comp)] = shrunk_ratio(sa, sp, k)
+            cal[(pos, comp)] = shrunk_ratio(sa, sp, k, prior.get((pos, comp), 1.0))
     return cal
 
 
-def walk_forward_calibration(rows, k: float = CAL_K, min_rows: int = 1) -> dict:
+def walk_forward_calibration(rows, k: float = CAL_K, min_rows: int = 1, prior: dict | None = None) -> dict:
     """{cutoff: factors} where the factors for cutoff c are fitted only on rows whose TARGET round is <= c,
     i.e. on outcomes already known at c (those rows were predicted at earlier cutoffs, c' < round <= c).
     A row predicted at c itself (target round > c) is never in its own training set. Fewer than `min_rows`
-    training rows -> {} (every factor 1.0)."""
+    training rows -> the prior's factors ({} = every factor 1.0 without a prior). `prior` (e.g. last season's
+    full-season factors) must not use outcomes of the season being tested."""
     out = {}
     for c in sorted({r.cut for r in rows}):
         train = [r for r in rows if r.rnd <= c]
-        out[c] = fit_calibration(train, k) if len(train) >= max(min_rows, 1) else {}
+        out[c] = fit_calibration(train, k, prior) if len(train) >= max(min_rows, 1) else dict(prior or {})
     return out
 
 
-def walk_forward_predicted(rows, k: float = CAL_K, min_rows: int = 1):
+def walk_forward_predicted(rows, k: float = CAL_K, min_rows: int = 1, prior: dict | None = None):
     """Out-of-sample calibrated predictions: each row uses the factors fitted at its own cutoff."""
-    cals = walk_forward_calibration(rows, k, min_rows)
+    cals = walk_forward_calibration(rows, k, min_rows, prior)
     return np.array([total(r.comps, r.pos, cals[r.cut]) for r in rows])
 
 
-def walk_forward_metrics(rows, k: float = CAL_K, min_rows: int = 1) -> dict:
-    pr = walk_forward_predicted(rows, k, min_rows)
+def walk_forward_metrics(rows, k: float = CAL_K, min_rows: int = 1, prior: dict | None = None) -> dict:
+    pr = walk_forward_predicted(rows, k, min_rows, prior)
     return score(rows, pr) | {"top12": top_k_actual(rows, pred=pr)}
 
 
 def top_k_actual(rows, calibration=None, k: int = 12, pred=None) -> float:
-    """Average actual points of the k highest-projected players in each (cutoff, round)."""
-    by: dict = {}
+    """Average actual points of the k highest-projected players in each (cutoff, round). A player with two matches
+    in the round (double gameweek) counts once, with both matches' projected and actual points summed."""
+    pp: dict = {}
     for r, p in zip(rows, predicted(rows, calibration) if pred is None else pred):
-        by.setdefault((r.cut, r.rnd), []).append((p, r.points))
+        q = pp.setdefault((r.cut, r.rnd, r.pid), [0.0, 0.0])
+        q[0] += p
+        q[1] += r.points
+    by: dict = {}
+    for (c, rnd, _), (p, a) in pp.items():
+        by.setdefault((c, rnd), []).append((p, a))
     return float(np.mean([np.mean([a for _, a in sorted(v, reverse=True)[:k]]) for v in by.values()]))
 
 
-def time_split(rows, split_round: int = 6, k: float = CAL_K) -> dict:
+def time_split(rows, split_round: int = 6, k: float = CAL_K, prior: dict | None = None) -> dict:
     train, test = [r for r in rows if r.rnd <= split_round], [r for r in rows if r.rnd > split_round]
-    cal = fit_calibration(train, k)
+    cal = fit_calibration(train, k, prior)
     return {"train_n": len(train), "test_n": len(test), "uncalibrated": metrics(test), "calibrated": metrics(test, cal)}
 
 

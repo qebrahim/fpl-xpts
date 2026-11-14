@@ -7,12 +7,19 @@ them.
 **Golden numbers (data through GW10, shipped config, bookmaker odds OFF):** live odds change from day to day, so the
 golden numbers are defined with `--no-odds`: `fplxpts --ttl 999999999 squad --no-odds --squad config/squad.example.toml`,
 `fplxpts --ttl 999999999 export --no-odds --out ...`, `fplxpts --ttl 999999999 backtest --no-odds`.
-GW11-15 expected points: Rudoni 22.7, Konsa 24.7,
-N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5 (Isak's minutes are overridden by hand in
-`config/squad.example.toml`; without the override, as in the export, he is 24.1). Backtest: 9,267 player-games,
-RMSE 2.964 (calibrated in-sample 2.944, walk-forward 2.956), time split 2.840 -> 2.825. The backtest with the shipped
-historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.954 (in-sample 2.934,
-walk-forward 2.946), time split 2.837 -> 2.823. (Odds anchoring, `odds_weight = 0.5`, and the ratings nudge,
+GW11-15 expected points: Rudoni 22.8, Konsa 24.9,
+N.Jackson 26.1, Isak 24.2, Haaland 27.2, Van Hecke 21.6 (Isak's minutes are overridden by hand in
+`config/squad.example.toml`; without the override, as in the export, he is 25.6). Backtest: 9,267 player-games,
+RMSE 2.966 (calibrated in-sample 2.946, walk-forward 2.958), time split 2.850 -> 2.836. The backtest with the shipped
+historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.956 (in-sample 2.936,
+walk-forward 2.949), time split 2.846 -> 2.833. (Updated when the recency half-lives and last-season prior were
+changed on the evidence of four past seasons, `form_halflife` 4 -> 8, `team_halflife` 3 -> 8, `prior_min` 450 -> 300,
+`prior_lambda` 0.15 -> 0.3, and every calibration factor was refitted; before that: Rudoni 22.7, Konsa 24.7,
+N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5, Isak without override 24.1, RMSE 2.963 / 2.943 / 2.955,
+2.840 -> 2.826 without odds and 2.953 / 2.933 / 2.945, 2.837 -> 2.824 with. Updated when save points became E[floor(saves / 3)] and the GK
+saves factor was refitted, 0.668 -> 0.959: the six outfield golden numbers did not move, goalkeepers did, e.g. Raya
+20.9 -> 20.7; before that the backtest lines were 2.964 / 2.944 / 2.956, 2.840 -> 2.825 without odds and
+2.954 / 2.934 / 2.946, 2.837 -> 2.823 with. Odds anchoring, `odds_weight = 0.5`, and the ratings nudge,
 `odds_ratings_weight = 1`, do not move the odds-off numbers; the odds-on backtest line was added then. Before the nudge
 was switched on the odds-on line was RMSE 2.959 / 2.939 / 2.951, 2.840 -> 2.826. Updated when the calibration
 factors were refitted with pseudo-point shrinkage k = 160 and walk-forward calibration was added; before that:
@@ -65,7 +72,7 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
    club moves; consider a team-level prior from last season for the first few gameweeks.
 8. **Bonus and saves.** Bonus is now event-driven (`bonus.py`, done). Remaining: model BPS directly (bonus is
    top-3 BPS *within a match*, so a goal is worth less when a teammate also scores), GK bonus (correlation fell
-   slightly) and GK saves, which are over-projected (raw factor 0.59, shipped 0.67): use shots-on-target faced rather than rate x minutes.
+   slightly) and GK saves: save points are now E[floor(saves / 3)] (done; factor 0.67 -> 0.96). Remaining: use shots-on-target faced rather than rate x minutes.
 9. **Forward assists factor** (raw 2.21, shipped 1.50 after k = 160 shrinkage) rests on ~850 player-games
    (114 expected points); stronger shrinkage is now in. Remaining: a model of forward xA, re-check as data
    accumulates. Same for FWD dc (raw 0.08, shipped 0.72) and GK yc.
@@ -95,6 +102,39 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
     Football-Data CSV also has per-match xG (`HxG`, `AxG`). Team xG is currently derived from goalkeeper
     expected-goals-conceded in the FPL API; compare the two in the backtest and consider switching or averaging.
 
+16. **Follow-ups from the past-seasons study** (docs/BACKTEST.md, "Past seasons"; `fplxpts backtest --season all`;
+    the shipped defaults were frozen for the study; the longer recency windows have since been shipped). In order of
+    evidence:
+    - **Calibrate towards last season's factors.** Shrink the walk-forward factors towards the previous season's
+      instead of towards 1 (`(sum actual + k * f_prev) / (sum predicted + k)`): significantly better in all three
+      past seasons with a predecessor (-0.009 to -0.015 squared error overall, -0.09 to -0.16 at cutoffs 1-5). For the
+      live model, refit the shipped factors with 2025/26 rows as the target: several shipped factors (cs, gc, GK
+      bonus, MID goal/assist) lie outside every past season's range and look like ten-week luck. Implemented as an
+      option, off by default (`fplxpts backtest --fit --prior-season 2025-26`); re-checked with the new half-lives
+      and previewed, not shipped (docs/BACKTEST.md): -0.006 to -0.023 overall, -0.04 to -0.12 at cutoffs 1-5. To
+      adopt: choose k (640 looks better than 160 on past seasons), paste the factors, update the golden numbers.
+    - **Longer recency windows** (DONE 2026-11, owner's decision on the past-season evidence). `form_halflife` 8 and
+      `team_halflife` 8 with `prior_min` 300, `prior_lambda` 0.3 are shipped, calibration refitted; after the saves
+      fix they improve walk-forward squared error in all four past seasons (-0.013 to -0.042) and are slightly worse,
+      not significantly, on 2026/27 GW1-10 (+0.020 [-0.012, +0.052], top-12 4.64 -> 4.50; see docs/BACKTEST.md).
+      Follow-up: re-test on 2026/27 at GW20 (old vs new settings, walk-forward); revert if the current season keeps
+      disagreeing significantly.
+    - **Team-level prior from last season** for the start of a season: shrink each team's ratings towards its
+      previous-season rating (halfway to 1, 6 pseudo-games), promoted teams towards the relegated teams' average.
+      Small but significant gain in all three seasons, about -0.1 for promoted teams' players at cutoffs 1-5 (they are
+      over-projected by +0.4 to +1.2 points per game early). Needs the previous season's fixtures/xG (the archive
+      loader has them; the live API does not keep last season's team xG).
+    - **Opponent DC factor**: no effect on 2025/26, the only other season with defensive contributions; switch off
+      (`dc_opp_k = 0`) unless 2026/27 GW20+ shows a gain (item 11).
+    - **Saves points as E[floor(saves / 3)]** under Poisson (like `gc_penalty`), not `saves / 3` (DONE, see
+      docs/BACKTEST.md): the GK saves factor was 0.57-0.67 in every season, and GK bonus (0.54-0.59 past, 0.86 shipped) rides on over-projected saves and
+      clean sheets.
+    - **Season-start bias** (+0.26 to +0.32 per player-game at cutoffs 1-5 in every season): mostly the calibration
+      having nothing to fit on; the first follow-up above addresses it. Summer movers' priors were earned in another
+      team's system (the prior hurt them in 2025/26).
+    - Backtest gaps that remain: no historical availability flags; the archive's 2022/23 has no xG before GW16; only
+      2025/26 has the full two-season prior. Add 2026/27 to `archive.SEASONS` once the archive publishes it.
+
 ## P2: planner features
 
 1. **Multi-week transfer planner.** Today it scores single swaps only and ignores the bank. Add beam search
@@ -104,6 +144,8 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
    gameweeks from fixtures, value Bench Boost from projected bench points, Free Hit from the gap between the
    current XI and the best XI in a gameweek. Check the chip reset gameweek from `chips` in bootstrap-static
    each season (first-half chips expired after GW19 in 2026/27).
+   The Projector now sums a double gameweek's two fixtures, and past seasons (`backtest --season`) give double/
+   blank-gameweek rounds to test the planner on.
 3. **Roll vs use** a free transfer: value the banked transfer explicitly.
 4. **Price-change awareness** (ownership and net transfers) for timing moves.
 
@@ -121,13 +163,17 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 - Screenshots / short GIF in the README; CI badge.
 - Refresh `docs/BACKTEST.md` as the season progresses; add a plot of RMSE vs cutoff.
 - Short write-up of the findings: defender goals over-projected ~2x, finishing under-performance does not
-  persist, last-season priors add little, and what a 8%-variance model is still good for.
+  persist, last-season priors help over a whole season (the ten-week search said they add little), and what a
+  8%-variance model is still good for.
 - Replace the placeholder name in `LICENSE`.
 
 ## Known limitations to keep documented
 
 - Ten gameweeks of data; shipped calibration fitted on the whole window (the walk-forward line is the
   out-of-sample check, and only its early cutoffs identify the shrinkage strength).
+- Past seasons (`backtest --season`) come from a community archive; they have no availability flags either, 2022/23
+  has no xG before GW16; the half-lives and prior weights were chosen on them, the other hyper-parameters were not
+  re-tuned (docs/BACKTEST.md, Past seasons).
 - Unofficial API; fields can change. Pen counts and some overrides are manual.
 - `legacy/` holds the original exploratory scripts (hard-coded paths, chained). They are a parity reference
   only; do not extend them.

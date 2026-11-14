@@ -23,7 +23,8 @@ the errors it finds.
 - **Bonus by how it is earned:** projected from the goals, assists, clean sheet and saves expected in each
   fixture (marginal bonus per event by position) plus a player baseline, not a flat rate.
 - **Player rates** for xG, xA, bonus baseline, saves, cards, minutes and defensive contribution, shrunk towards a
-  position prior and a small last-season prior. The minutes model skips games an established starter missed
+  position prior and a last-season prior, with recent games weighted more (half-life 8 games for player rates and
+  team ratings). The minutes model skips games an established starter missed
   through (inferred) injury or suspension once he is back in the side; current availability comes from FPL's flags.
 - **Penalties handled explicitly:** taken penalties are stripped from history and each club's primary taker
   gets a normal forward-looking share, so a lucky run of penalties is not extrapolated.
@@ -45,14 +46,15 @@ fplxpts project --squad config/squad.toml --top 8                    # best play
 fplxpts squad   --squad config/squad.toml --swap Schade:Rudoni       # per-GW XI and captain after a transfer
 fplxpts moves   --squad config/squad.toml --max-cost 0.5             # best single transfers
 fplxpts backtest --fit                                               # replay the season, print fitted factors
+fplxpts backtest --season all                                        # replay past seasons (community archive)
 ```
 
 Example (`fplxpts squad --swap Schade:Rudoni --weeks 1 --no-odds`):
 
 ```
-GW11  5-2-3  XI 50.9  (C Isak, VC Haaland)
-   XI   : Raya 4.4, Van Hecke 4.9, Muharemović 4.4, De Cuyper 4.3, Thomas 4.2, Calafiori 4.0, Rudoni 5.2, Tavernier 3.8, Isak 5.6, Haaland 5.3, N.Jackson 4.8
-   Bench: Mbeumo 3.5, Rogers 3.2, Barnes 3.1, Palmer 0.0
+GW11  5-2-3  XI 51.7  (C Haaland, VC Isak)
+   XI   : Raya 4.3, Van Hecke 4.7, De Cuyper 4.3, Thomas 4.2, Muharemović 4.2, Calafiori 4.2, Rudoni 5.2, Tavernier 4.0, Haaland 5.9, Isak 5.7, N.Jackson 5.0
+   Bench: Mbeumo 3.7, Rogers 3.3, Barnes 3.1, Palmer 0.0
 ```
 
 ### Bookmaker odds (optional)
@@ -77,20 +79,46 @@ Walk-forward over GW1-9 starts, predicting the next 5 rounds (9,267 player-games
 
 | Predictor | RMSE |
 |---|---|
-| Model, calibrated, walk-forward (out-of-sample) | 2.956 |
-| Model, calibrated, in-sample (shipped factors) | 2.944 |
-| Model, uncalibrated | 2.964 |
+| Model, calibrated, walk-forward (out-of-sample) | 2.958 |
+| Model, calibrated, in-sample (shipped factors) | 2.946 |
+| Model, uncalibrated | 2.966 |
 | Season points-per-game so far | 3.332 |
 | Last-four-games form | 3.365 |
 
 These are without bookmaker odds (`--no-odds`); with the shipped next-round odds anchoring (pre-match odds,
 only those available before each round, `odds_weight = 0.5`, plus the ratings nudge `odds_ratings_weight = 1`) they are
-2.946 walk-forward, 2.934 in-sample, 2.954 uncalibrated (time split 2.837 -> 2.823).
+2.949 walk-forward, 2.936 in-sample, 2.956 uncalibrated (time split 2.846 -> 2.833). The recency half-lives and
+last-season prior weight were chosen on four past seasons (below); on these ten weeks they are slightly worse than
+the previous, shorter settings (walk-forward 2.955 -> 2.958 without odds, not significant).
 The in-sample line uses factors fitted on the same rows; the walk-forward line refits them at each cutoff using
 only outcomes known by then (cutoff 1 has nothing to fit on and stays uncalibrated). Factors fitted on early
-rounds and tested on later ones: RMSE 2.840 -> 2.825 and bias +0.26 -> +0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
+rounds and tested on later ones: RMSE 2.850 -> 2.836 and bias +0.22 -> -0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
 See [docs/BACKTEST.md](docs/BACKTEST.md) for the method and what the backtest found (for example, defender
 goal threat was over-projected by roughly 2x, and past finishing under-performance did not persist).
+
+### Past seasons
+
+Most hyper-parameters were chosen on ten gameweeks, so the model was also replayed on four earlier seasons, each
+season on its own (its own teams, players, priors from the season before, scoring rules and odds), from the
+community archive (`fplxpts backtest --season all`). Walk-forward over the whole season, next 5 rounds, odds on,
+calibration refitted inside the season at each cutoff, shipped settings (the recency half-lives and prior weights
+were chosen on these four seasons, so for those four settings this is not out of sample):
+
+| Season | Player-games | Model RMSE | Season PPG | Last-four form | Model minus PPG | Squared-error diff vs PPG [95% CI] | Top-12 picks: model / by PPG |
+|---|---|---|---|---|---|---|---|
+| 2025/26 | 69,197 | 2.745 | 2.828 | 2.999 | -0.082 | -0.46 [-0.61, -0.31] | 4.62 / 4.33 |
+| 2024/25 | 70,128 | 2.557 | 2.654 | 2.806 | -0.096 | -0.50 [-0.64, -0.38] | 5.37 / 4.67 |
+| 2023/24 | 70,664 | 2.653 | 2.751 | 2.893 | -0.097 | -0.53 [-0.67, -0.39] | 5.30 / 4.77 |
+| 2022/23 (from GW16, no xG before) | 39,314 | 2.667 | 2.791 | 2.906 | -0.124 | -0.68 [-0.88, -0.49] | 5.44 / 5.83 |
+| 2026/27 GW1-10 (current, for comparison) | 9,267 | 2.949 | 3.332 | 3.365 | -0.384 | -2.41 [-3.07, -1.78] | 4.50 / 4.04 |
+
+The model beats both baselines in every season and phase, but the large margin seen on the current season's first
+ten weeks is a start-of-season effect: over GW20-29 it is only 0.01-0.03 RMSE better than PPG (the ranking edge
+persists). The odds, strength-of-schedule ratings and the injury-absence rule hold up on past seasons; the opponent
+DC factor does not; every past season preferred longer form and team-rating half-lives than the earlier 4 and 3
+games and a stronger last-season prior, so those are now shipped (8 and 8 games, prior weight 0.3, position prior
+300 minutes); and several shipped calibration factors (clean sheets, goals conceded, GK bonus) lie outside every past season's
+range. Details and recommendations: [docs/BACKTEST.md, Past seasons](docs/BACKTEST.md#past-seasons).
 
 ## Data sources
 
@@ -100,6 +128,12 @@ goal threat was over-projected by roughly 2x, and past finishing under-performan
   historical bookmaker odds (`https://www.football-data.co.uk/mmz4281/2627/E0.csv`, column notes at
   https://www.football-data.co.uk/notes.txt). Downloaded once into `.cache/football-data_E0_<season>.csv` and
   re-read from disk (re-downloaded at most daily; works offline from the cached file).
+- **[vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League)** (Vaastav Anand, "FPL
+  Historical Dataset", MIT licence; the data itself belongs to the Premier League / FPL): per-player per-match
+  history of past seasons for `fplxpts backtest --season ...` (`data/<season>/gws/merged_gw.csv`, `fixtures.csv`,
+  `teams.csv`, `players_raw.csv`, 2022-23 to 2025-26). Each file is downloaded once into
+  `.cache/vaastav_<season>_<name>.csv` and only read from disk afterwards. Past seasons' odds come from the matching
+  Football-Data.co.uk files (`mmz4281/2223` .. `2526`). Thanks to the archive's maintainers; please cite it if you use it.
 - **[The Odds API](https://the-odds-api.com)** v4: live bookmaker odds for upcoming fixtures (needs `ODDS_API_KEY`,
   see above). Cached in `.cache/odds-api_soccer_epl.json` for 12 hours; the key is never written to disk or logs.
 
@@ -109,6 +143,7 @@ goal threat was over-projected by roughly 2x, and past finishing under-performan
 src/fplxpts/
   api.py        FPL API client + disk cache
   data.py       Season loader (team xG from keeper xGC, finished-match histories, past seasons)
+  archive.py    past seasons from the community archive as the same Season structure (backtest --season)
   teams.py      team attack/defence ratings
   players.py    player rates with position + last-season priors
   pens.py       penalty stripping and primary-taker shares

@@ -12,13 +12,23 @@ from .constants import COMPONENTS, CS_PTS, DC_THRESHOLD, GOAL_PTS
 from .teams import TeamState, damped_opp_xg, opp_of
 
 
-def gc_penalty(lam: float) -> float:
-    """E[floor(k/2)] for k ~ Poisson(lam): expected goals-conceded penalty points (-1 per 2 goals)."""
+def expected_floor(lam: float, per: int, kmax: int = 15) -> float:
+    """E[floor(k / per)] for k ~ Poisson(lam): points that are awarded per `per` whole events."""
     s, p = 0.0, math.exp(-lam)
-    for k in range(15):
-        s += (k // 2) * p
+    for k in range(kmax):
+        s += (k // per) * p
         p *= lam / (k + 1)
     return s
+
+
+def gc_penalty(lam: float) -> float:
+    """Expected goals-conceded penalty points (-1 per 2 goals conceded)."""
+    return expected_floor(lam, 2)
+
+
+def save_points(lam: float) -> float:
+    """Expected save points (+1 per 3 whole saves), not saves / 3: two saves earn nothing."""
+    return expected_floor(lam, 3, kmax=40)
 
 
 def dc_hit_vs(hit: float, opp_factor: float, faced_factor: float) -> float:
@@ -64,7 +74,7 @@ def components(p: dict, venue: str, opp: int, st: TeamState) -> dict:
         "gc": -(gc_penalty(opp_xg * mf) if pos in (1, 2) else 0.0),
         "dc": 2 * dc_hit_vs(p["hit"], st.dc_opp.get(opp, 1.0), st.pn_dc.get(T, 1.0)) * p["p60"],
         "bonus": expected_bonus(p["bon_base90"], p["bon_k"], mf, {"goal": goals, "assist": assists, "cs": p_cs, "sav": saves}),
-        "sav": saves / 3,
+        "sav": save_points(saves),
         "yc": -p["yc90"] * mf,
     }
 

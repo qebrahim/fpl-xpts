@@ -1,19 +1,23 @@
 # Default model hyper-parameters and calibration factors.
-# Hyper-parameters were chosen by walk-forward backtest over GW1-10 of 2026/27 (see docs/BACKTEST.md).
+# Hyper-parameters were chosen by walk-forward backtest over GW1-10 of 2026/27, except the recency half-lives and
+# the prior weights (form_halflife, team_halflife, prior_min, prior_lambda), chosen 2026-11 on four past seasons
+# (2022/23-2025/26, community archive), which all preferred them; see docs/BACKTEST.md.
 # Calibration factors = (sum actual + k) / (sum predicted + k) points per position and component over the
 # walk-forward backtest rows, i.e. the actual/predicted ratio shrunk towards 1 with k = 160 pseudo-points
 # (backtest.CAL_K; k chosen by walk-forward out-of-sample backtest, see docs/BACKTEST.md). Fitted 2026-11 on
 # data through GW10 of 2026/27 with the current default model (after dc_opp_k = 40, team_sos_iters = 20 and the
-# minutes model skipping injury absences). Refit as the season progresses:  fplxpts backtest --fit
+# minutes model skipping injury absences); refitted 2026-11 after the saves fix and the longer half-lives / stronger
+# prior (rows with the historical odds on, as `fplxpts backtest --fit` runs). Refit as the season progresses:
+# fplxpts backtest --fit
 
 [model]
-team_halflife = 3.0          # recency half-life (games) for team attack/defence ratings
+team_halflife = 8.0          # recency half-life (games) for team attack/defence ratings (3 before 2026-11; past seasons)
 team_shrink_k = 3.0          # pseudo-games shrinking team ratings towards league average
 team_sos_iters = 20          # strength-of-schedule passes: divide xG by opponent rating (fixed point); 0 = off
-form_halflife = 4.0          # recency half-life (games) for player rates; set to 0 for season-long
-prior_min = 450.0            # pseudo-minutes of the position-average prior
+form_halflife = 8.0          # recency half-life (games) for player rates; 0 = season-long (4 before 2026-11; past seasons)
+prior_min = 300.0            # pseudo-minutes of the position-average prior (450 before 2026-11; past seasons)
 prior_apps = 3.0             # pseudo-appearances for the defensive-contribution hit rate prior
-prior_lambda = 0.15          # weight of last-season rates (fraction of last-season minutes, capped)
+prior_lambda = 0.3           # weight of last-season rates (fraction of last-season minutes, capped; 0.15 before 2026-11)
 prior_cap_minutes = 2500.0
 prior_min_season_minutes = 450.0   # ignore a past season with fewer minutes than this
 min_live_minutes = 90.0      # players need this many minutes before they are projected
@@ -33,35 +37,35 @@ odds_ratings_weight = 1.0    # odds as this many extra games in team ratings (he
 
 [calibration.GK]
 app = 0.937
-cs = 1.135
-gc = 0.865
-bonus = 0.862
-sav = 0.668
-yc = 0.963
+cs = 1.130
+gc = 0.870
+bonus = 0.908
+sav = 0.959
+yc = 0.959
 
 [calibration.DEF]
 app = 0.852
-goal = 0.567
-assist = 0.972
-cs = 1.100
-gc = 0.772
+goal = 0.577
+assist = 0.981
+cs = 1.094
+gc = 0.778
 dc = 0.987
-bonus = 0.927
-yc = 0.999
+bonus = 0.935
+yc = 1.001
 
 [calibration.MID]
 app = 0.885
-goal = 0.796
-assist = 1.037
-cs = 1.212
+goal = 0.805
+assist = 1.032
+cs = 1.211
 dc = 0.989
-bonus = 0.835
-yc = 1.004
+bonus = 0.843
+yc = 1.003
 
 [calibration.FWD]
 app = 0.938
-goal = 0.846
-assist = 1.502
+goal = 0.854
+assist = 1.505
 dc = 0.716
-bonus = 1.037
-yc = 0.853
+bonus = 1.045
+yc = 0.856

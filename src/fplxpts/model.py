@@ -78,6 +78,7 @@ class Projector:
             d = {}
             for ev, venue, opp in sorted(sched.get(p["team"], [])):
                 x = total(components(p, venue, opp, self.state), p["pos"], self.cfg.calibration)
-                d[ev] = x * (chance if ev == first else (1.0 if chance >= 0.5 else 0.5))   # flag applies to the next GW only
+                # flag applies to the next GW only; a double gameweek adds both fixtures
+                d[ev] = d.get(ev, 0.0) + x * (chance if ev == first else (1.0 if chance >= 0.5 else 0.5))
             series[pid] = d
         return Projection(self.season, self.players, series, first, last)
