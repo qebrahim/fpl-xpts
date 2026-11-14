@@ -20,6 +20,9 @@ class TeamState:
     dc_opp: dict = field(default_factory=dict)  # team id -> DC hits its opponents make vs expectation (1.0 = average)
     pn_dc: dict = field(default_factory=dict)   # average dc_opp of the opponents each team has faced
     opp_xg_gamma: float = 1.0  # damping of the opponent-xG matchup used for clean sheets (1.0 = undamped)
+    # (team, opp, venue) -> (expected goals for, against) in that fixture, overriding the rating product
+    # (bookmaker-anchored fixtures, see anchor_fixtures); a (home, away) pair occurs once a season
+    fixture_xg: dict = field(default_factory=dict)
 
 
 def damped_opp_xg(lg_v: float, att_opp: float, dfn_team: float, gamma: float = 1.0) -> float:
@@ -80,14 +83,21 @@ def recency_weights(n: int, hl: float | None) -> list:
     return [1.0 if hl is None else 0.5 ** ((n - 1 - i) / hl) for i in range(n)]
 
 
-def ratings(log: dict, lg: dict, teams, hl: float | None, k: float, sos_iters: int = 0) -> tuple:
+def ratings(log: dict, lg: dict, teams, hl: float | None, k: float, sos_iters: int = 0,
+            extra: dict | None = None, extra_w: tuple = (0.0, 0.0)) -> tuple:
     """Attack and defence ratings (1.0 = league average), recency-weighted and shrunk with k pseudo-games.
 
     Each game's xG for (against) is divided by the league venue average and, when sos_iters > 0, also by the
     opponent's defence (attack) rating, so a team is not flattered by a soft schedule. The opponent ratings
     come from the previous pass (fixed-point iteration, sos_iters passes); each pass is rescaled so the league
     mean of each rating stays at its unadjusted value. sos_iters = 0 is the plain venue-normalised average.
+
+    `extra` {team: [(opp, venue, goals_for, goals_against)]} adds odds-implied games (see odds_games) with weight
+    extra_w = (attack, defence) each, relative to the most recent played game; they count as that many extra games
+    in the shrinkage. No extra games (the default) is exactly the plain computation.
     """
+    extra = extra or {}
+
     def one_pass(opp_att: dict, opp_dfn: dict) -> tuple:
         att, dfn = {}, {}
         for t in teams:
@@ -100,6 +110,14 @@ def ratings(log: dict, lg: dict, teams, hl: float | None, k: float, sos_iters: i
             sw = sum(ws)
             f_ = sum(w * (r[3] / (lg[r[2]] * max(opp_dfn.get(r[1], 1.0), MIN_RATING))) for w, r in zip(ws, lt)) / sw
             a_ = sum(w * (r[4] / (lg[opp_of(r[2])] * max(opp_att.get(r[1], 1.0), MIN_RATING))) for w, r in zip(ws, lt)) / sw
+            ex = extra.get(t, [])
+            if ex and (extra_w[0] > 0 or extra_w[1] > 0):
+                wa, wd = extra_w[0] * len(ex), extra_w[1] * len(ex)
+                ef = sum(e[2] / (lg[e[1]] * max(opp_dfn.get(e[0], 1.0), MIN_RATING)) for e in ex) / len(ex)
+                ea = sum(e[3] / (lg[opp_of(e[1])] * max(opp_att.get(e[0], 1.0), MIN_RATING)) for e in ex) / len(ex)
+                att[t] = ((f_ * sw + ef * wa) / (sw + wa) * (n + wa) + k) / (n + wa + k)
+                dfn[t] = ((a_ * sw + ea * wd) / (sw + wd) * (n + wd) + k) / (n + wd + k)
+                continue
             att[t] = (f_ * n + k) / (n + k)
             dfn[t] = (a_ * n + k) / (n + k)
         return att, dfn
@@ -118,7 +136,58 @@ def rescale_mean(r: dict, ref: dict) -> dict:
     return {t: v * s for t, v in r.items()}
 
 
-def team_state(season: Season, cut: int, cfg: Config) -> TeamState:
+def odds_games(odds: dict) -> dict:
+    """{(home, away): MatchOdds} -> {team: [(opp, venue, goals_for, goals_against)]} as extra rating games."""
+    out: dict = {}
+    for (h, a), o in odds.items():
+        out.setdefault(h, []).append((a, "h", o.lam_home, o.lam_away))
+        out.setdefault(a, []).append((h, "a", o.lam_away, o.lam_home))
+    return out
+
+
+def model_xg(st: TeamState, team: int, opp: int, venue: str) -> tuple:
+    """The ratings' expected goals (for, against) of `team` playing `opp` at `venue`, ignoring any anchoring."""
+    return st.lg[venue] * st.att[team] * st.dfn[opp], st.lg[opp_of(venue)] * st.att[opp] * st.dfn[team]
+
+
+def fixture_xg(st: TeamState, team: int, opp: int, venue: str) -> tuple:
+    """Expected goals (for, against) used for this fixture: the anchored values if any, else the ratings'."""
+    return st.fixture_xg.get((team, opp, venue)) or model_xg(st, team, opp, venue)
+
+
+def blend(model: float, odds: float, w: float) -> float:
+    """Linear blend of a model and an odds-implied expected-goals number: w = 0 model only, w = 1 odds only."""
+    return model if w <= 0 else odds if w >= 1 else (1 - w) * model + w * odds
+
+
+SIDES = ("both", "attack", "defence")
+
+
+def side_weights(w: float, side: str) -> tuple:
+    """(weight on the attacking side, weight on the defensive side) for one blend weight and side setting."""
+    if side not in SIDES:
+        raise ValueError(f"odds_side must be one of {SIDES}, got {side!r}")
+    return (w if side in ("both", "attack") else 0.0, w if side in ("both", "defence") else 0.0)
+
+
+def anchor_fixtures(st: TeamState, odds: dict, w: float, side: str = "both") -> dict:
+    """{(team, opp, venue): (xg_for, xg_against)} for the fixtures in `odds`, each team's goals blended with the
+    odds-implied ones. `side` = "attack" blends only a team's own goals (its goals/assists multiplier), "defence"
+    only the goals it concedes (clean sheet, goals conceded, saves), "both" both. Empty when w <= 0."""
+    wa, wd = side_weights(w, side)
+    if wa <= 0 and wd <= 0:
+        return {}
+    out = {}
+    for (h, a), o in odds.items():
+        for t, u, v, gf, ga in ((h, a, "h", o.lam_home, o.lam_away), (a, h, "a", o.lam_away, o.lam_home)):
+            mf, ma = model_xg(st, t, u, v)
+            out[(t, u, v)] = (blend(mf, gf, wa), blend(ma, ga, wd))
+    return out
+
+
+def team_state(season: Season, cut: int, cfg: Config, odds: dict | None = None) -> TeamState:
+    """Team ratings from fixtures up to round `cut`. `odds` {(home, away): MatchOdds} must hold only odds known at
+    `cut` (in the backtest, round cut + 1: odds.available_at); they are used only if the odds settings are on."""
     fc = [x for x in season.fin if x["ev"] <= cut]
     lg = {"h": sum(x["xg_h"] for x in fc) / len(fc), "a": sum(x["xg_a"] for x in fc) / len(fc)}
     log = game_log(fc)
@@ -128,7 +197,11 @@ def team_state(season: Season, cut: int, cfg: Config) -> TeamState:
     att0, dfn0 = ratings(log, lg, season.teams, None, m.team_shrink_k, m.team_sos_iters)
     pn_att = {t: sum(lg[r[2]] * dfn0[r[1]] for r in log[t]) / len(log[t]) for t in log}
     pn_opp = {t: sum(lg[opp_of(r[2])] * att0[r[1]] for r in log[t]) / len(log[t]) for t in log}
-    att, dfn = ratings(log, lg, season.teams, m.team_halflife, m.team_shrink_k, m.team_sos_iters)
+    odds = odds or {}
+    extra_w = side_weights(m.odds_ratings_weight, m.odds_side) if odds else (0.0, 0.0)
+    att, dfn = ratings(log, lg, season.teams, m.team_halflife, m.team_shrink_k, m.team_sos_iters, odds_games(odds), extra_w)
     dc_opp = dc_opp_factors(dc_obs_exp(season, cut, m.min_live_minutes), m.dc_opp_k)
     pn_dc = {t: sum(dc_opp.get(r[1], 1.0) for r in log[t]) / len(log[t]) for t in log} if dc_opp else {}
-    return TeamState(lg, att, dfn, pn_att, pn_opp, dc_opp, pn_dc, m.opp_xg_gamma)
+    st = TeamState(lg, att, dfn, pn_att, pn_opp, dc_opp, pn_dc, m.opp_xg_gamma)
+    st.fixture_xg = anchor_fixtures(st, odds, m.odds_weight, m.odds_side)
+    return st

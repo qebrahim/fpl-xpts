@@ -28,7 +28,9 @@ class Projection:
 
 
 class Projector:
-    def __init__(self, season: Season, cfg: Config, squad: SquadCfg | None = None, cut: int | None = None):
+    def __init__(self, season: Season, cfg: Config, squad: SquadCfg | None = None, cut: int | None = None,
+                 odds: dict | None = None):
+        """`odds` {(home, away): MatchOdds}: bookmaker odds for upcoming fixtures (used if the odds settings are on)."""
         self.season, self.cfg = season, cfg
         self.squad = squad or SquadCfg()
         self.cut = cut if cut is not None else season.current_gw
@@ -39,7 +41,7 @@ class Projector:
         for pid in self.pens.primary.values():           # normal forward-looking penalty share
             if pid in self.players:
                 self.players[pid]["xg90"] += cfg.model.pen_share_xg
-        self.state = team_state(season, self.cut, cfg)
+        self.state = team_state(season, self.cut, cfg, odds)
 
         self.ids = {name: season.find(name, team, pos) for name, team, pos in self.squad.players}
         for name, ov in self.squad.overrides.items():

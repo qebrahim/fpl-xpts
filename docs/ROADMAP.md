@@ -1,12 +1,19 @@
 # Roadmap: planned modifications
 
 Ordered roughly by priority. Each item says why it matters. "Parity" means: after the change,
-`fplxpts squad/moves/backtest` must reproduce the golden numbers below unless the change is meant to move them.
+`fplxpts squad/moves/backtest --no-odds` must reproduce the golden numbers below unless the change is meant to move
+them.
 
-**Golden numbers (data through GW10, shipped config):** GW11-15 expected points: Rudoni 22.7, Konsa 24.7,
+**Golden numbers (data through GW10, shipped config, bookmaker odds OFF):** live odds change from day to day, so the
+golden numbers are defined with `--no-odds`: `fplxpts --ttl 999999999 squad --no-odds --squad config/squad.example.toml`,
+`fplxpts --ttl 999999999 export --no-odds --out ...`, `fplxpts --ttl 999999999 backtest --no-odds`.
+GW11-15 expected points: Rudoni 22.7, Konsa 24.7,
 N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5 (Isak's minutes are overridden by hand in
 `config/squad.example.toml`; without the override, as in the export, he is 24.1). Backtest: 9,267 player-games,
-RMSE 2.964 (calibrated in-sample 2.944, walk-forward 2.956), time split 2.840 -> 2.825. (Updated when the calibration
+RMSE 2.964 (calibrated in-sample 2.944, walk-forward 2.956), time split 2.840 -> 2.825. The backtest with the shipped
+historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.959 (in-sample 2.939,
+walk-forward 2.951), time split 2.840 -> 2.826. (Odds anchoring, `odds_weight = 0.5`, did not move the odds-off
+numbers; the odds-on backtest line was added then. Updated when the calibration
 factors were refitted with pseudo-point shrinkage k = 160 and walk-forward calibration was added; before that:
 Rudoni 22.6, Konsa 24.9, N.Jackson 26.7, Isak 23.2, Haaland 25.6, Van Hecke 22.6, Isak without override 24.5,
 RMSE 2.964 / 2.944, 2.840 -> 2.827. Updated when the minutes model started skipping inferred
@@ -73,6 +80,19 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
     ratings improved team-level opponent-xG error (vs match xG) slightly and were neutral on goals and total RMSE,
     with a small, non-significant worsening of the time split (see docs/BACKTEST.md). Re-test at 20+ gameweeks;
     consider adjusting for the opponent's rating at the time of the match rather than its current rating.
+
+14. **Bookmaker odds** (`odds.py`, `odds_weight = 0.5`, on by default; see docs/BACKTEST.md). Done: Football-Data.co.uk
+    historical odds in the backtest (pre-match averages, round c+1 only at cutoff c), The Odds API for live
+    projections (cached 12 h, fallback to the model when there is no key or no odds), next-round blend of team
+    expected goals on both sides. Tested and shipped off: the ratings nudge (`odds_ratings_weight`, odds as extra
+    games in the team ratings), which also improved rounds 2-5 ahead significantly; switch it on (b = 1) if it holds
+    at 20+ gameweeks. Remaining: re-test w and b with more gameweeks; anchor GW+2 fixtures when the live feed has
+    them (needs a backtest with odds taken that far ahead); Asian handicap / exact totals lines; record the fetch
+    time relative to kickoff (closing odds were clearly better than the pre-match averages); add the
+    `ODDS_API_KEY` repository secret.
+15. **Football-Data match xG as the team xG source** (not started, out of scope of the odds work): the
+    Football-Data CSV also has per-match xG (`HxG`, `AxG`). Team xG is currently derived from goalkeeper
+    expected-goals-conceded in the FPL API; compare the two in the backtest and consider switching or averaging.
 
 ## P2: planner features
 

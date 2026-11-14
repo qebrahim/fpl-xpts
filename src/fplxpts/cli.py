@@ -1,4 +1,9 @@
-"""Command line interface:  fplxpts {project,squad,moves,backtest,export}"""
+"""Command line interface:  fplxpts {project,squad,moves,backtest,export}
+
+Bookmaker odds (odds.py) are used when the odds settings in the model config are on: live odds from The Odds API for
+project/squad/moves/export (key from ODDS_API_KEY or .env; a missing key or failed request falls back to the model's
+own numbers with one status line), and historical Football-Data.co.uk odds for backtest. --no-odds turns them off.
+"""
 from __future__ import annotations
 
 import argparse
@@ -12,6 +17,15 @@ from .constants import POS
 from .data import load_season
 from .export import build_export, eligible, write_export
 from .model import Projector
+from .odds import (
+    LiveOdds,
+    api_key,
+    football_data_csv,
+    live_odds,
+    odds_by_round,
+    parse_football_data,
+    season_code,
+)
 from .optimize import pick_lineup, single_moves
 
 
@@ -22,6 +36,26 @@ def _load(args):
     return cfg, season, squad
 
 
+def odds_on(cfg, args) -> bool:
+    """Whether the bookmaker-odds settings are on and not disabled with --no-odds."""
+    return (cfg.model.odds_weight > 0 or cfg.model.odds_ratings_weight > 0) and not getattr(args, "no_odds", False)
+
+
+def _live_odds(cfg, season, args) -> LiveOdds | None:
+    """Live odds for the next gameweek when the feature is on (prints one status line), else None. Never raises."""
+    if not odds_on(cfg, args):
+        return None
+    live = live_odds(season, season.current_gw + 1, args.cache, api_key())
+    print(live.message())
+    return live
+
+
+def _projector(cfg, season, squad, args) -> Projector:
+    live = _live_odds(cfg, season, args)
+    args.live_odds = live
+    return Projector(season, cfg, squad, odds=live.by_fixture if live else None)
+
+
 def _row(proj, pid, lo, hi):
     e = proj.season.elements[pid]
     return f"{e['web_name']:<14}{proj.season.teams[e['team']]:<4} £{e['now_cost'] / 10:4.1f}m  {proj.pts(pid, lo, hi):5.1f}"
@@ -29,7 +63,7 @@ def _row(proj, pid, lo, hi):
 
 def cmd_project(args):
     cfg, season, squad = _load(args)
-    pr = Projector(season, cfg, squad)
+    pr = _projector(cfg, season, squad, args)
     proj = pr.project(args.first, args.last)
     lo, hi = proj.first_gw, proj.first_gw + args.weeks - 1
     print(f"Expected points GW{lo}-{hi} (data through GW{pr.cut}); top {args.top} by position")
@@ -44,10 +78,12 @@ def cmd_export(args):
     pens = args.pens or ("data/pens.toml" if Path("data/pens.toml").exists() else None)
     args.squad = pens
     cfg, season, squad = _load(args)
-    pr = Projector(season, cfg, squad)
+    pr = _projector(cfg, season, squad, args)
     proj = pr.project(args.first, args.last)
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     data = build_export(proj, pr.cut, args.weeks, args.top, now)
+    if args.live_odds is not None:                       # additive field; absent when the feature is off
+        data["odds"] = args.live_odds.summary()
     write_export(data, args.out)
     n = sum(len(v) for v in data["positions"].values())
     print(f"Wrote {n} players, GW{data['gameweeks'][0]}-{data['gameweeks'][-1]} (data through GW{pr.cut}) to {args.out}")
@@ -55,7 +91,7 @@ def cmd_export(args):
 
 def cmd_squad(args):
     cfg, season, squad = _load(args)
-    pr = Projector(season, cfg, squad)
+    pr = _projector(cfg, season, squad, args)
     proj = pr.project(args.first, args.last)
     ids = list(pr.ids.values())
     for swap in args.swap or []:
@@ -76,7 +112,7 @@ def cmd_squad(args):
 
 def cmd_moves(args):
     cfg, season, squad = _load(args)
-    pr = Projector(season, cfg, squad)
+    pr = _projector(cfg, season, squad, args)
     proj = pr.project(args.first, args.last)
     lo = proj.first_gw
     windows = ((lo, lo + 4), (lo, proj.last_gw))
@@ -87,11 +123,30 @@ def cmd_moves(args):
         print(f"  {name(m.out):<13}-> {name(m.into):<13} {m.gains[0]:+5.1f} | {m.gains[1]:+5.1f} | £{m.cost:+.1f}m")
 
 
+def _historical_odds(cfg, season, args) -> dict | None:
+    """{round: {(home, away): MatchOdds}} from the Football-Data.co.uk CSV (cached) when the feature is on."""
+    if not odds_on(cfg, args):
+        return None
+    kind = "close" if args.closing_odds else "open"
+    try:
+        text = football_data_csv(args.cache, season_code(season.fixtures), ttl=max(args.ttl, 86400))
+        rounds = odds_by_round(parse_football_data(text, season.team_ids, kind), season.fixtures)
+    except Exception as e:  # noqa: BLE001 - report and run without odds
+        print(f"Bookmaker odds unavailable ({type(e).__name__}: {e}); backtest runs with odds off")
+        return None
+    label = "closing averages (upper bound)" if kind == "close" else "pre-match averages"
+    print(f"Bookmaker odds: Football-Data.co.uk {label} for {sum(len(v) for v in rounds.values())} fixtures; "
+          f"at cutoff c only round c+1 is used (odds_weight {cfg.model.odds_weight}, side {cfg.model.odds_side}, "
+          f"ratings weight {cfg.model.odds_ratings_weight})")
+    return rounds
+
+
 def cmd_backtest(args):
     cfg, season, _ = _load(args)
     last = season.current_gw
     cuts = list(range(1, last))
-    rows = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last)
+    odds_rounds = _historical_odds(cfg, season, args)
+    rows = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last, odds_rounds)
     print(f"Walk-forward backtest: cutoffs GW{cuts[0]}-{cuts[-1]}, next {args.horizon} rounds, {len(rows)} player-games")
     m0, m1, wf = bt.metrics(rows), bt.metrics(rows, cfg.calibration), bt.walk_forward_metrics(rows)
     print(f"  model (uncalibrated)          RMSE {m0['rmse']:.3f}  bias {m0['bias']:+.3f}  corr {m0['corr']:.3f}  top-12 picks {bt.top_k_actual(rows):.2f}")
@@ -105,6 +160,14 @@ def cmd_backtest(args):
     print(f"  time split (fit rounds<=6 n={ts['train_n']}, test rounds>6 n={ts['test_n']}): "
           f"RMSE {ts['uncalibrated']['rmse']:.3f} -> {ts['calibrated']['rmse']:.3f}, "
           f"bias {ts['uncalibrated']['bias']:+.3f} -> {ts['calibrated']['bias']:+.3f}")
+    if odds_rounds:
+        r0 = bt.evaluate(season, cfg.without_calibration(), cuts, args.horizon, last)
+        z0, w0 = bt.metrics(r0), bt.walk_forward_metrics(r0)
+        nx = [i for i, r in enumerate(rows) if r.rnd == r.cut + 1]
+        wf1, wf0 = bt.walk_forward_predicted(rows), bt.walk_forward_predicted(r0)
+        n1 = bt.score([rows[i] for i in nx], wf1[nx])["rmse"], bt.score([r0[i] for i in nx], wf0[nx])["rmse"]
+        print(f"  same model, odds off          RMSE {z0['rmse']:.3f}  walk-fwd {w0['rmse']:.3f}; next-round rows walk-fwd "
+              f"RMSE {n1[0]:.3f} with odds vs {n1[1]:.3f} without")
     if args.fit:
         print("\n# paste into src/fplxpts/default.toml\n" + bt.calibration_toml(bt.fit_calibration(rows)))
 
@@ -121,14 +184,19 @@ def main(argv=None):
         p.add_argument("--last", type=int, help="last gameweek to project (default: first+7)")
         p.add_argument("--weeks", type=int, default=5, help="window length for totals")
 
+    def no_odds(p):
+        p.add_argument("--no-odds", action="store_true", help="ignore bookmaker odds (model's own numbers only)")
+
     p = sub.add_parser("project", help="top players by position")
     window(p)
+    no_odds(p)
     p.add_argument("--squad", help="squad TOML (for pen counts and overrides)")
     p.add_argument("--top", type=int, default=10)
     p.set_defaults(fn=cmd_project)
 
     p = sub.add_parser("export", help="write top players per position as JSON for the web front end")
     window(p)
+    no_odds(p)
     p.add_argument("--out", required=True)
     p.add_argument("--pens", help="TOML with [[pen_goals]] tables (default: data/pens.toml if present)")
     p.add_argument("--top", type=int, default=10)
@@ -136,12 +204,14 @@ def main(argv=None):
 
     p = sub.add_parser("squad", help="your squad, lineups and captains")
     window(p)
+    no_odds(p)
     p.add_argument("--squad", required=True)
     p.add_argument("--swap", action="append", help="OUT:IN, e.g. Schade:Rudoni (repeatable)")
     p.set_defaults(fn=cmd_squad)
 
     p = sub.add_parser("moves", help="best single transfers")
     window(p)
+    no_odds(p)
     p.add_argument("--squad", required=True)
     p.add_argument("--max-cost", type=float, default=0.5, help="max extra spend in GBP m")
     p.add_argument("--top", type=int, default=12)
@@ -150,6 +220,8 @@ def main(argv=None):
     p = sub.add_parser("backtest", help="walk-forward backtest and calibration check")
     p.add_argument("--horizon", type=int, default=5)
     p.add_argument("--fit", action="store_true", help="print freshly fitted calibration factors")
+    p.add_argument("--no-odds", action="store_true", help="backtest without bookmaker odds")
+    p.add_argument("--closing-odds", action="store_true", help="use closing odds (an upper bound, not realistic)")
     p.set_defaults(fn=cmd_backtest)
 
     args = ap.parse_args(argv)

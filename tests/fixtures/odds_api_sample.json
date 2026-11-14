@@ -1,0 +1,25 @@
+[
+ {"id": "e1", "sport_key": "soccer_epl", "sport_title": "EPL", "commence_time": "2026-11-21T12:30:00Z",
+  "home_team": "Manchester City", "away_team": "Fulham",
+  "bookmakers": [
+   {"key": "book_a", "title": "Book A", "last_update": "2026-11-14T02:37:01Z", "markets": [
+    {"key": "h2h", "last_update": "2026-11-14T02:37:01Z", "outcomes": [
+     {"name": "Fulham", "price": 6.25}, {"name": "Manchester City", "price": 1.41}, {"name": "Draw", "price": 4.7}]},
+    {"key": "totals", "last_update": "2026-11-14T02:37:01Z", "outcomes": [
+     {"name": "Over", "price": 1.65, "point": 2.5}, {"name": "Under", "price": 2.2, "point": 2.5},
+     {"name": "Over", "price": 2.6, "point": 3.5}, {"name": "Under", "price": 1.45, "point": 3.5}]}]},
+   {"key": "book_b", "title": "Book B", "last_update": "2026-11-14T02:37:01Z", "markets": [
+    {"key": "h2h", "last_update": "2026-11-14T02:37:01Z", "outcomes": [
+     {"name": "Manchester City", "price": 1.44}, {"name": "Fulham", "price": 6.0}, {"name": "Draw", "price": 4.6}]},
+    {"key": "totals", "last_update": "2026-11-14T02:37:01Z", "outcomes": [
+     {"name": "Over", "price": 1.9, "point": 2.75}, {"name": "Under", "price": 1.9, "point": 2.75}]}]}]},
+ {"id": "e2", "sport_key": "soccer_epl", "sport_title": "EPL", "commence_time": "2026-11-21T15:00:00Z",
+  "home_team": "Aston Villa", "away_team": "Sunderland",
+  "bookmakers": [
+   {"key": "book_a", "title": "Book A", "last_update": "2026-11-14T02:37:01Z", "markets": [
+    {"key": "h2h", "last_update": "2026-11-14T02:37:01Z", "outcomes": [
+     {"name": "Aston Villa", "price": 1.8}, {"name": "Sunderland", "price": 4.5}, {"name": "Draw", "price": 3.8}]}]}]},
+ {"id": "e3", "sport_key": "soccer_epl", "sport_title": "EPL", "commence_time": "2026-11-22T14:00:00Z",
+  "home_team": "Wimbledon FC", "away_team": "Brighton and Hove Albion",
+  "bookmakers": []}
+]

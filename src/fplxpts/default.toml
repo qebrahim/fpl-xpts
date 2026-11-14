@@ -23,6 +23,9 @@ opp_xg_gamma = 1.0           # exponent on the opponent-xG matchup (att_opp*dfn_
 dc_opp_k = 40.0              # opponent 'DC allowed' factor shrinkage (expected hits); 0 = off. See docs/BACKTEST.md
 absence_starts_before = 2    # minutes model skips a run of 0-minute games (inferred injury/suspension) when the player
 absence_starts_after = 1     # started his last 2 played games before it and his first game back; 0 = off
+odds_weight = 0.5            # bookmaker odds: blend weight of odds-implied team goals in fixtures with odds (next GW); 0 = off
+odds_side = "both"           # which side the odds anchor: "both", "attack" (goals/assists), "defence" (cs/gc/saves)
+odds_ratings_weight = 0.0    # odds as this many extra games in team ratings (helps GW+2..5 too); 0 = off. See docs/BACKTEST.md
 
 [model.prior_seasons]        # which past seasons feed the prior, and their weight
 "2025/26" = 1.0

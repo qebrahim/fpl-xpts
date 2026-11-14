@@ -26,6 +26,22 @@ def dc_hit_vs(hit: float, opp_factor: float, faced_factor: float) -> float:
     return min(1.0, hit * opp_factor / faced_factor)
 
 
+def anchored(att_m: float, opp_m: float, opp_xg: float, model_for: float, fx: tuple, lg_opp: float,
+             gamma: float = 1.0) -> tuple:
+    """Matchup terms (att_m, opp_m, opp_xg, cs_xg) for a fixture whose team expected goals are fixed at
+    fx = (xg_for, xg_against) instead of the rating products (model_for = lg_v * att_T * dfn_opp, opp_xg).
+
+    The team's own goals enter only as a ratio to the ratings' value, so att_m (relative to the environment the
+    player's rates were earned in) becomes att_m * xg_for / model_for = xg_for / (att_T * pn_att_T): the player-rate
+    normalisation is unchanged. Saves scale by xg_against / opp_xg; goals conceded use xg_against; the clean-sheet
+    xG keeps the opp_xg_gamma damping of its multiplier xg_against / lg_opp. fx equal to the model's values gives
+    back the unanchored terms.
+    """
+    xg_for, xg_against = fx
+    cs_xg = lg_opp * (xg_against / lg_opp) ** gamma
+    return att_m * xg_for / model_for, opp_m * xg_against / opp_xg, xg_against, cs_xg
+
+
 def components(p: dict, venue: str, opp: int, st: TeamState) -> dict:
     """Expected points by component for player rates `p` playing `opp` at `venue` ('h' or 'a')."""
     lg, T, pos, mf = st.lg, p["team"], p["pos"], p["mf"]
@@ -33,6 +49,10 @@ def components(p: dict, venue: str, opp: int, st: TeamState) -> dict:
     opp_xg = lg[opp_of(venue)] * st.att[opp] * st.dfn[T]     # opponent's expected goals vs this team
     cs_xg = damped_opp_xg(lg[opp_of(venue)], st.att[opp], st.dfn[T], st.opp_xg_gamma)  # damped, for clean sheets
     opp_m = lg[opp_of(venue)] * st.att[opp] / st.pn_opp[T]
+    fx = st.fixture_xg.get((T, opp, venue))
+    if fx is not None:                                        # bookmaker-anchored fixture (teams.anchor_fixtures)
+        att_m, opp_m, opp_xg, cs_xg = anchored(att_m, opp_m, opp_xg, lg[venue] * st.att[T] * st.dfn[opp], fx,
+                                               lg[opp_of(venue)], st.opp_xg_gamma)
     goals, assists = p["xg90"] * mf * att_m, p["xa90"] * mf * att_m
     p_cs = math.exp(-cs_xg) * p["p60"]                        # P(clean sheet and 60+ minutes)
     saves = p["sav90"] * mf * opp_m if pos == 1 else 0.0

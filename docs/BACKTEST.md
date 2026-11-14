@@ -1,6 +1,7 @@
 # Backtest: method and findings
 
-Data: 2026/27 season, GW1-10 (finished), via the public FPL API. Re-run with `fplxpts backtest --fit`.
+Data: 2026/27 season, GW1-10 (finished), via the public FPL API; bookmaker odds from Football-Data.co.uk. Re-run
+with `fplxpts backtest --fit` (`--no-odds` for the model without odds).
 
 ## Method
 
@@ -26,6 +27,10 @@ outcomes known at that cutoff, see below) and a single **time split** (fit on ta
 | Model, calibrated walk-forward (out-of-sample) | 2.956 | +0.14 | 0.286 |
 | Naive: season PPG | 3.332 | | |
 | Naive: last-four form | 3.365 | | |
+
+The three model rows are without bookmaker odds (`fplxpts backtest --no-odds`). With the shipped odds anchoring
+(next round only, pre-match odds, see the section below) they are 2.959 / 2.939 / 2.951 (bias +0.29 / +0.03 / +0.14,
+top-12 4.68 / 4.68 / 4.58), time split 2.840 -> 2.826.
 
 Top-12 picks (average actual points of the 12 highest-projected players per cutoff and round): uncalibrated 4.65,
 in-sample calibrated 4.57, walk-forward 4.54.
@@ -322,6 +327,140 @@ app calibration factors would move by about 1% on a refit (actual/predicted app:
 0.883, FWD 0.937 -> 0.931, GK 0.931 -> 0.930); they were not refitted. Limitation: a strict start / bench / start
 rotation pattern looks the same as a one-game injury. Effect at GW10: no squad-example player moves (Isak's minutes
 are overridden there); Isak without the override 19.7 -> 24.5 over GW11-15.
+
+## Bookmaker odds as an anchor for team goals (tested, shipped on: next-round blend, w = 0.5)
+
+Idea: bookmaker prices for a match carry information the xG ratings do not (team news, lineups, market
+consensus). A scratch test had found odds-implied goals beat the model's next-round team prediction on clean
+sheets. Here it is redone on the current model (strength-of-schedule ratings, all current defaults) with the
+**pre-match** prices a forecaster would actually have when building the next gameweek's projections.
+
+Conversion (`odds.py`): 1X2 and over/under 2.5 prices are de-vigged proportionally; the over/under probability fixes
+the Poisson total `T` (the sum of two Poissons is Poisson(T)), and `P(home) / (P(home) + P(away))` fixes the split
+into `(lambda_home, lambda_away)`. Both steps are monotone and solved by bisection; they invert the Poisson model
+exactly (round-trip tests). Data: Football-Data.co.uk's 2026/27 Premier League CSV (100 matches, GW1-10), average
+pre-match prices (`AvgH/AvgD/AvgA`, `Avg>2.5/Avg<2.5`) as the realistic proxy for odds fetched a few days before
+kickoff; the closing averages (`AvgC...`) are reported only as an upper bound. **At cutoff c only the odds for round
+c+1 are used** (`odds.available_at`, with a leakage test).
+
+Variants (all in `teams.py`, `ModelCfg.odds_weight / odds_side / odds_ratings_weight`; all at 0 reproduce the old
+output byte for byte):
+
+- **A, next-round anchoring:** in fixtures with odds, each team's expected goals for and against are blended,
+  `(1 - w) * model + w * odds`, and the blended values are used everywhere the fixture's team expectations enter
+  `points.components`: goals conceded (gc penalty), clean sheet (with the usual `opp_xg_gamma` damping), saves
+  (scaled by `xg_against / model xg_against`), and the attacking multiplier. The last is the subtle one:
+  `att_m = lg_v * dfn_opp / pn_att_T` is the team's model expected goals `lg_v * att_T * dfn_opp` divided by
+  `att_T * pn_att_T`, the team-strength-times-environment its players' rates were earned in. So the anchored
+  multiplier is `xg_for / (att_T * pn_att_T)`, i.e. `att_m * xg_for / model xg_for`, which keeps the player-rate
+  normalisation (`points.anchored`). `odds_side` restricts the blend to "attack" (a team's own goals: goals,
+  assists, attacking bonus) or "defence" (goals it concedes: cs, gc, saves).
+- **B, ratings nudge:** the next round's odds-implied goals are added to the team-ratings fit as one extra game per
+  team with weight `b` relative to the most recent played game (same venue normalisation, strength-of-schedule
+  division and `team_shrink_k` shrinkage as real games; `teams.ratings(extra=...)`). This moves the ratings, so
+  rounds 2-5 ahead (no odds) are affected too. The past-opponent norms `pn_att` / `pn_opp` are not touched.
+
+Team level (one row per team-match from the defending side: expected goals conceded vs goals conceded;
+P(clean sheet) = exp(-lambda); 180 team-matches next round, 700 over the next 5 rounds). Differences vs off on the
+next round, 95% CI from a paired bootstrap **by match** (2,000 reps). A "attack" leaves goals conceded unchanged and A
+"defence" equals A "both" at team level, so they are omitted:
+
+| variant | next-1 goals RMSE | next-1 CS Brier | next-1 log-loss | next-5 goals RMSE | next-5 CS Brier | next-5 log-loss | d CS Brier next-1 | d log-loss next-1 |
+|---|---|---|---|---|---|---|---|---|
+| off | 1.2235 | 0.2053 | 1.4981 | 1.2062 | 0.2071 | 1.4904 | | |
+| A w = 0.25 | 1.2025 | 0.2022 | 1.4852 | 1.2008 | 0.2063 | 1.4871 | -0.0031 [-0.0057, -0.0006] | -0.013 [-0.026, -0.001] |
+| **A w = 0.5 (shipped)** | **1.1892** | **0.1994** | **1.4772** | **1.1974** | **0.2056** | **1.4850** | **-0.0059 [-0.0112, -0.0008]** | **-0.021 [-0.046, +0.003]** |
+| A w = 0.75 | 1.1837 | 0.1969 | 1.4740 | 1.1960 | 0.2049 | 1.4842 | -0.0084 [-0.0167, -0.0005] | -0.024 [-0.061, +0.011] |
+| A w = 1 (odds only) | 1.1863 | 0.1946 | 1.4756 | 1.1966 | 0.2044 | 1.4846 | -0.0107 [-0.0223, +0.0004] | -0.023 [-0.071, +0.024] |
+| B b = 0.5 | 1.2055 | 0.2028 | 1.4868 | 1.1955 | 0.2055 | 1.4835 | -0.0025 [-0.0043, -0.0007] | -0.011 [-0.021, -0.003] |
+| B b = 1 | 1.1958 | 0.2013 | 1.4808 | 1.1896 | 0.2045 | 1.4797 | -0.0040 [-0.0071, -0.0010] | -0.017 [-0.033, -0.003] |
+| B b = 2 | 1.1865 | 0.1994 | 1.4751 | 1.1838 | 0.2032 | 1.4761 | -0.0059 [-0.0107, -0.0012] | -0.023 [-0.046, -0.002] |
+| B b = 4 | 1.1809 | 0.1977 | 1.4717 | 1.1798 | 0.2020 | 1.4736 | -0.0076 [-0.0144, -0.0010] | -0.026 [-0.057, +0.002] |
+| A 0.5 + B 1 | 1.1831 | 0.1977 | 1.4733 | 1.1864 | 0.2036 | 1.4778 | -0.0076 [-0.0146, -0.0009] | -0.025 [-0.057, +0.006] |
+| closing: A w = 0.5 | 1.1839 | 0.1983 | 1.4736 | 1.1960 | 0.2053 | 1.4841 | -0.0070 [-0.0122, -0.0020] | -0.025 [-0.050, -0.002] |
+| closing: A w = 1 | 1.1760 | 0.1924 | 1.4679 | 1.1940 | 0.2038 | 1.4827 | -0.0129 [-0.0240, -0.0019] | -0.030 [-0.078, +0.015] |
+| closing: B b = 1 | 1.1925 | 0.2007 | 1.4786 | 1.1897 | 0.2042 | 1.4797 | -0.0046 [-0.0075, -0.0016] | -0.020 [-0.035, -0.006] |
+
+Player level (9,267 player-games, 2,556 of them next-round rows). RMSE uncalibrated / in-sample calibrated (shipped
+factors) / walk-forward calibrated (`walk_forward_metrics`); top-12 = average actual points of the 12 highest
+projected per (cutoff, round), uncalibrated / walk-forward; cs Brier on P(cs and 60') per GK/DEF row, goal squared
+error per MID/FWD row, both next-round rows, uncalibrated:
+
+| variant | next-1 u / in-s / WF | all u / in-s / WF | top-12 next-1 | top-12 all | GK cs Brier | DEF cs Brier | MID goal SE | FWD goal SE |
+|---|---|---|---|---|---|---|---|---|
+| off | 2.9369 / 2.9316 / 2.9351 | 2.9638 / 2.9436 / 2.9558 | 5.14 / 5.07 | 4.65 / 4.54 | 0.1793 | 0.1527 | 2.3608 | 4.0455 |
+| A both w = 0.25 | 2.9260 / 2.9212 / 2.9241 | 2.9608 / 2.9408 / 2.9529 | 5.15 / 4.92 | 4.65 / 4.50 | 0.1767 | 0.1512 | 2.3559 | 3.9940 |
+| **A both w = 0.5 (shipped)** | **2.9187 / 2.9136 / 2.9164** | **2.9588 / 2.9387 / 2.9508** | **5.26 / 5.23** | **4.68 / 4.58** | **0.1744** | **0.1499** | **2.3542** | **3.9581** |
+| A both w = 0.75 | 2.9148 / 2.9085 / 2.9118 | 2.9578 / 2.9373 / 2.9496 | 5.25 / 5.37 | 4.68 / 4.62 | 0.1723 | 0.1488 | 2.3557 | 3.9378 |
+| A both w = 1 | 2.9144 / 2.9062 / 2.9102 | 2.9576 / 2.9367 / 2.9491 | 5.59 / 5.56 | 4.77 / 4.62 | 0.1704 | 0.1480 | 2.3604 | 3.9330 |
+| A attack w = 0.5 | 2.9298 / 2.9252 / 2.9271 | 2.9619 / 2.9419 / 2.9540 | 5.06 / 5.05 | 4.63 / 4.53 | 0.1793 | 0.1527 | 2.3542 | 3.9581 |
+| A attack w = 1 | 2.9287 / 2.9233 / 2.9246 | 2.9615 / 2.9413 / 2.9538 | 5.12 / 5.19 | 4.65 / 4.57 | 0.1793 | 0.1527 | 2.3604 | 3.9330 |
+| A defence w = 0.5 | 2.9248 / 2.9193 / 2.9235 | 2.9605 / 2.9402 / 2.9524 | 5.19 / 5.32 | 4.67 / 4.60 | 0.1744 | 0.1499 | 2.3608 | 4.0455 |
+| A defence w = 1 | 2.9186 / 2.9115 / 2.9170 | 2.9588 / 2.9381 / 2.9502 | 5.35 / 5.51 | 4.71 / 4.61 | 0.1704 | 0.1480 | 2.3608 | 4.0455 |
+| B b = 0.5 | 2.9294 / 2.9244 / 2.9277 | 2.9590 / 2.9389 / 2.9510 | 5.20 / 5.04 | 4.66 / 4.64 | 0.1772 | 0.1515 | 2.3582 | 4.0190 |
+| B b = 1 | 2.9251 / 2.9201 / 2.9235 | 2.9564 / 2.9363 / 2.9484 | 5.19 / 5.05 | 4.69 / 4.69 | 0.1760 | 0.1507 | 2.3567 | 4.0037 |
+| B b = 2 | 2.9205 / 2.9155 / 2.9190 | 2.9538 / 2.9335 / 2.9457 | 5.22 / 5.11 | 4.72 / 4.68 | 0.1745 | 0.1499 | 2.3550 | 3.9869 |
+| B b = 4 | 2.9168 / 2.9116 / 2.9155 | 2.9521 / 2.9314 / 2.9437 | 5.16 / 5.07 | 4.68 / 4.75 | 0.1730 | 0.1491 | 2.3537 | 3.9723 |
+| A 0.5 + B 1 | 2.9157 / 2.9104 / 2.9136 | 2.9538 / 2.9336 / 2.9457 | 5.29 / 5.29 | 4.71 / 4.72 | 0.1730 | 0.1491 | 2.3530 | 3.9561 |
+| closing: A w = 0.5 | 2.9156 / 2.9105 / 2.9132 | 2.9580 / 2.9378 / 2.9499 | 5.10 / 5.26 | 4.64 / 4.59 | 0.1732 | 0.1491 | 2.3515 | 3.9495 |
+| closing: A w = 1 | 2.9077 / 2.8996 / 2.9034 | 2.9558 / 2.9349 / 2.9472 | 5.33 / 5.38 | 4.70 / 4.60 | 0.1681 | 0.1464 | 2.3543 | 3.9165 |
+
+Paired bootstrap **by player** (2,000 reps), difference in squared error vs off (negative = better), 95% CI:
+
+| variant | next-1 uncal | next-1 WF | all rows uncal | all rows WF | rounds 2-5 only, WF | GK+DEF cs Brier, next-1 | MID+FWD goal SE, next-1 |
+|---|---|---|---|---|---|---|---|
+| A both w = 0.25 | -0.063 [-0.091, -0.038] | -0.064 [-0.091, -0.039] | -0.017 [-0.025, -0.011] | -0.017 [-0.025, -0.010] | +0.001 [-0.001, +0.002] | -0.0017 [-0.0024, -0.0010] | -0.013 [-0.029, -0.000] |
+| **A both w = 0.5** | **-0.106 [-0.161, -0.056]** | **-0.109 [-0.162, -0.060]** | **-0.029 [-0.044, -0.015]** | **-0.029 [-0.044, -0.016]** | **+0.001 [-0.002, +0.004]** | **-0.0032 [-0.0046, -0.0017]** | **-0.021 [-0.051, +0.004]** |
+| A both w = 0.75 | -0.129 [-0.212, -0.052] | -0.136 [-0.217, -0.062] | -0.036 [-0.058, -0.014] | -0.037 [-0.059, -0.016] | +0.001 [-0.004, +0.006] | -0.0044 [-0.0067, -0.0020] | -0.023 [-0.068, +0.014] |
+| A both w = 1 | -0.132 [-0.245, -0.027] | -0.145 [-0.255, -0.044] | -0.036 [-0.067, -0.008] | -0.039 [-0.069, -0.012] | +0.001 [-0.007, +0.009] | -0.0054 [-0.0088, -0.0020] | -0.020 [-0.078, +0.029] |
+| A attack w = 0.5 | -0.041 [-0.078, -0.006] | -0.047 [-0.084, -0.013] | -0.011 [-0.021, -0.002] | -0.011 [-0.021, -0.001] | +0.003 [+0.001, +0.005] | 0 | -0.021 [-0.051, +0.004] |
+| A attack w = 1 | -0.048 [-0.120, +0.023] | -0.061 [-0.135, +0.006] | -0.013 [-0.033, +0.006] | -0.012 [-0.032, +0.007] | +0.007 [+0.003, +0.011] | 0 | -0.020 [-0.078, +0.029] |
+| A defence w = 0.5 | -0.071 [-0.109, -0.037] | -0.068 [-0.105, -0.036] | -0.020 [-0.030, -0.010] | -0.020 [-0.030, -0.012] | -0.002 [-0.005, +0.001] | -0.0032 [-0.0046, -0.0017] | 0 |
+| A defence w = 1 | -0.107 [-0.188, -0.033] | -0.106 [-0.183, -0.037] | -0.029 [-0.052, -0.009] | -0.033 [-0.054, -0.015] | -0.005 [-0.014, +0.003] | -0.0054 [-0.0088, -0.0020] | 0 |
+| B b = 0.5 | -0.044 [-0.060, -0.029] | -0.043 [-0.059, -0.029] | -0.028 [-0.040, -0.018] | -0.028 [-0.039, -0.018] | -0.023 [-0.034, -0.012] | -0.0014 [-0.0019, -0.0008] | -0.007 [-0.013, -0.002] |
+| B b = 1 | -0.069 [-0.097, -0.043] | -0.068 [-0.094, -0.044] | -0.044 [-0.063, -0.026] | -0.044 [-0.062, -0.027] | -0.035 [-0.053, -0.017] | -0.0022 [-0.0032, -0.0013] | -0.011 [-0.020, -0.003] |
+| B b = 2 | -0.096 [-0.139, -0.057] | -0.094 [-0.134, -0.058] | -0.059 [-0.089, -0.031] | -0.060 [-0.086, -0.034] | -0.047 [-0.074, -0.020] | -0.0032 [-0.0046, -0.0017] | -0.015 [-0.029, -0.004] |
+| B b = 4 | -0.117 [-0.176, -0.065] | -0.115 [-0.169, -0.065] | -0.069 [-0.111, -0.031] | -0.071 [-0.107, -0.036] | -0.055 [-0.091, -0.018] | -0.0041 [-0.0061, -0.0020] | -0.019 [-0.037, -0.004] |
+| A 0.5 + B 1 | -0.124 [-0.189, -0.065] | -0.126 [-0.189, -0.069] | -0.059 [-0.088, -0.033] | -0.059 [-0.086, -0.034] | -0.034 [-0.052, -0.016] | -0.0041 [-0.0061, -0.0020] | -0.022 [-0.052, +0.002] |
+| closing: A w = 0.5 | -0.124 [-0.184, -0.069] | -0.128 [-0.185, -0.075] | -0.034 [-0.050, -0.019] | -0.035 [-0.050, -0.020] | +0.001 [-0.001, +0.003] | -0.0040 [-0.0056, -0.0024] | -0.025 [-0.058, +0.003] |
+| closing: A w = 1 | -0.171 [-0.288, -0.060] | -0.185 [-0.300, -0.080] | -0.047 [-0.079, -0.016] | -0.051 [-0.082, -0.022] | +0.000 [-0.006, +0.006] | -0.0072 [-0.0110, -0.0034] | -0.028 [-0.092, +0.026] |
+
+(A changes rounds 2-5 only through the walk-forward calibration factors, which are refitted on rows that include
+anchored next-round rows.) Time split (fit target rounds <= 6, test > 6, calibrated): off 2.8253, A 0.5 2.8258
+(+0.003 [-0.010, +0.015] squared error), B 1 2.8225 (-0.016 [-0.033, +0.002]), A 0.5 + B 1 2.8234 (-0.011 [-0.035,
++0.015]). Bias (all rows, in-sample calibrated): off +0.032, A 0.5 +0.033, A 1 +0.039, B 1 +0.036, A 0.5 + B 1
++0.037; walk-forward +0.144 -> +0.143 for A 0.5.
+
+Readings:
+- **The odds help, at team and player level, out of sample.** The pre-match odds beat the model's next-round team
+  goals on every measure, and blending them in improves next-round player RMSE uncalibrated, calibrated and
+  walk-forward, with bootstrap intervals clear of zero, without hurting the other rows.
+- **Defence benefits more than attack.** On next-round rows the defensive side alone (cs, gc, saves) gives about
+  two thirds of the gain of both sides (-0.068 vs -0.109 at w = 0.5) and is significant at every weight; the
+  attacking side alone gives -0.047 (significant at w = 0.5, not at w = 1), with the MID+FWD goal-component error
+  improving only within noise. Both sides help, so both are anchored.
+- **Weight:** the team-level and player-level gains rise up to w = 0.75-1 but the intervals widen and the
+  calibrated bias and the time split drift up slightly from w = 0.75; w = 0.5 is the conservative choice.
+- **B also works**, and is the only variant that improves rounds 2-5 ahead (-0.035 [-0.053, -0.017] at b = 1,
+  growing with b). On top of A 0.5, B 1 adds -0.016 [-0.030, -0.004] on next-round rows and -0.035 [-0.053, -0.017]
+  on rounds 2-5 (walk-forward, by player).
+- **Closing odds are better still** (upper bound): A at w = 1 with closing prices gives -0.185 on next-round rows,
+  vs -0.145 with the pre-match prices. Odds fetched closer to kickoff should help more.
+
+**Decision: shipped on with A, both sides, w = 0.5** (`odds_weight = 0.5`, `odds_side = "both"`): the simplest variant
+that is better out of sample on the next-round rows without being worse overall (the decision rule set before the
+test). B is implemented and tested but **shipped off** (`odds_ratings_weight = 0`) because it is the more complex
+change; the numbers above say it adds a significant further gain (A 0.5 + B 1: all rows walk-forward 2.9457 vs
+2.9508) and it is the first candidate to switch on. Calibration factors were not refitted (bias unchanged).
+`fplxpts backtest` now uses the historical odds by default (walk-forward RMSE 2.951 vs 2.956 without); `--no-odds`
+reproduces the old lines and `--closing-odds` the upper bound.
+
+Live projections use The Odds API (UK bookmakers, h2h and totals markets, each bookmaker de-vigged then averaged;
+every half-goal totals line is converted to a Poisson total and averaged, quarter and whole lines are skipped).
+Only the next gameweek's fixtures are anchored, matching what was tested. Limitations: 100 matches (GW1-10), one
+season; the pre-match average is a proxy for "a few days before", and the live fetch happens whenever the daily
+build runs (1-7 days before kickoff); the w grid was looked at in-sample on these rows (w = 0.5 is not the
+best-scoring weight, which limits the selection effect). Re-test at 20+ gameweeks.
 
 ## Limitations
 

@@ -6,6 +6,9 @@ mean actual to mean predicted points per (position, component), shrunk towards 1
 They are judged out of sample by refitting them at every cutoff on outcomes known by then
 (`walk_forward_metrics`) and by a single time split (fit on early target rounds, test on later ones).
 
+Bookmaker odds (`odds_rounds` {round: {(home, away): MatchOdds}}, from Football-Data.co.uk): at cutoff c only the
+odds for round c + 1 are passed to the model (`odds.available_at`), as a forecaster would really have them.
+
 Note: the backtest uses the raw history (penalties are not stripped) because per-match penalty data is
 not available for past gameweeks; the live Projector strips them.
 """
@@ -19,25 +22,75 @@ import numpy as np
 from .config import Config
 from .constants import COMPONENTS, POS
 from .data import Season
+from .odds import available_at
 from .players import build_players
 from .points import actual_components, components, total
-from .teams import team_state
+from .teams import fixture_xg, team_state
 
 Row = namedtuple("Row", "pid cut rnd pos comps actual points")
+TeamRow = namedtuple("TeamRow", "cut rnd fixture team opp venue lam goals")
 
 
-def evaluate(season: Season, cfg: Config, cuts=None, horizon: int = 5, last_gw: int | None = None) -> list:
+def evaluate(season: Season, cfg: Config, cuts=None, horizon: int = 5, last_gw: int | None = None,
+             odds_rounds: dict | None = None) -> list:
     last_gw = last_gw or season.current_gw
     cuts = cuts or list(range(1, last_gw))
     rows = []
     for c in cuts:
-        players, st = build_players(season, c, cfg), team_state(season, c, cfg)
+        odds = available_at(odds_rounds, c) if odds_rounds else None
+        players, st = build_players(season, c, cfg), team_state(season, c, cfg, odds)
         for pid, p in players.items():
             for r in season.hist[pid]:
                 if c < r["round"] <= min(c + horizon, last_gw):
                     comps = components(p, "h" if r["was_home"] else "a", r["opponent_team"], st)
                     rows.append(Row(pid, c, r["round"], p["pos"], comps, actual_components(r, p["pos"]), r["total_points"]))
     return rows
+
+
+def team_rows(season: Season, cfg: Config, cuts, horizon: int, last_gw: int, odds_rounds: dict | None = None) -> list:
+    """One row per team per finished fixture in rounds c+1..c+horizon after each cutoff c, from the defending side:
+    the goals the team is expected to concede as the model uses them (anchored if odds were available at c) and the
+    goals it conceded (so P(clean sheet) = exp(-lam))."""
+    out = []
+    for c in cuts:
+        st = team_state(season, c, cfg, available_at(odds_rounds, c) if odds_rounds else None)
+        for f in season.fixtures:
+            ev = f.get("event")
+            if not ev or not c < ev <= min(c + horizon, last_gw) or not f.get("finished") or f.get("team_h_score") is None:
+                continue
+            h, a = f["team_h"], f["team_a"]
+            out.append(TeamRow(c, ev, f["id"], h, a, "h", fixture_xg(st, h, a, "h")[1], f["team_a_score"]))
+            out.append(TeamRow(c, ev, f["id"], a, h, "a", fixture_xg(st, a, h, "a")[1], f["team_h_score"]))
+    return out
+
+
+def poisson_logpmf(k: int, lam: float) -> float:
+    return k * math.log(lam) - lam - math.lgamma(k + 1)
+
+
+def team_errors(rows) -> dict:
+    """Per-row squared goal error, clean-sheet Brier (P(conceding 0) = exp(-lam)) and Poisson log-loss, as arrays
+    (for paired bootstraps)."""
+    lam, g = np.array([r.lam for r in rows]), np.array([r.goals for r in rows])
+    return {"goals_se": (lam - g) ** 2, "cs_brier": (np.exp(-lam) - (g == 0)) ** 2,
+            "logloss": -np.array([poisson_logpmf(int(k), x) for k, x in zip(g, lam)])}
+
+
+def team_metrics(rows) -> dict:
+    e = team_errors(rows)
+    return {"n": len(rows), "goals_rmse": math.sqrt(e["goals_se"].mean()), "cs_brier": float(e["cs_brier"].mean()),
+            "logloss": float(e["logloss"].mean())}
+
+
+def paired_bootstrap(diff, groups, reps: int = 2000, seed: int = 1) -> tuple:
+    """Mean of per-row differences and a 95% interval, resampling whole groups (players, matches) with replacement."""
+    diff, groups = np.asarray(diff, dtype=float), np.asarray(groups)
+    keys, inv = np.unique(groups, return_inverse=True)
+    sums, cnts = np.bincount(inv, weights=diff), np.bincount(inv).astype(float)
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(keys), size=(reps, len(keys)))
+    boot = sums[idx].sum(axis=1) / cnts[idx].sum(axis=1)
+    return float(diff.mean()), float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))
 
 
 # pseudo-points shrinking each calibration factor towards 1.0 (chosen by walk-forward backtest, docs/BACKTEST.md)

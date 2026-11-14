@@ -24,13 +24,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e .
+      # .cache holds the FPL API responses and the bookmaker-odds cache (odds-api_soccer_epl.json, 12 h; it never
+      # contains the key), so restoring it saves Odds API quota on re-runs.
       - uses: actions/cache@v4
         with:
           path: .cache
           key: fpl-cache-${{ github.run_id }}
           restore-keys: fpl-cache-
       # If the export step fails the job fails and the previously deployed site stays live.
+      # Bookmaker odds are optional: with the ODDS_API_KEY secret missing (empty) or a failed request the export
+      # prints one line and uses the model's own numbers.
       - run: fplxpts --ttl 21600 export --out web/public/data/projections.json
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22

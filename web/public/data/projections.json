@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generated_at": "2026-11-13T04:34:17Z",
+ "generated_at": "2026-11-14T02:38:34Z",
  "data_through_gw": 10,
  "gameweeks": [
   11,
@@ -16,11 +16,11 @@
     "name": "Trafford",
     "team": "LEE",
     "price": 5.0,
-    "total": 22.15,
+    "total": 21.8,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.46,
+      "xpts": 4.11,
       "fixtures": [
        {
         "opp": "CHE",
@@ -75,11 +75,11 @@
     "name": "Raya",
     "team": "ARS",
     "price": 6.2,
-    "total": 21.11,
+    "total": 20.98,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.38,
+      "xpts": 4.25,
       "fixtures": [
        {
         "opp": "NEW",
@@ -134,11 +134,11 @@
     "name": "Kinsky",
     "team": "TOT",
     "price": 4.4,
-    "total": 20.43,
+    "total": 20.42,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.15,
+      "xpts": 4.13,
       "fixtures": [
        {
         "opp": "IPS",
@@ -193,11 +193,11 @@
     "name": "Verbruggen",
     "team": "BHA",
     "price": 4.7,
-    "total": 19.78,
+    "total": 19.72,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.37,
+      "xpts": 4.31,
       "fixtures": [
        {
         "opp": "HUL",
@@ -252,11 +252,11 @@
     "name": "Petrović",
     "team": "BOU",
     "price": 4.5,
-    "total": 19.73,
+    "total": 19.61,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.93,
+      "xpts": 3.81,
       "fixtures": [
        {
         "opp": "NFO",
@@ -311,11 +311,11 @@
     "name": "Sels",
     "team": "NFO",
     "price": 5.0,
-    "total": 19.31,
+    "total": 19.27,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.43,
+      "xpts": 3.38,
       "fixtures": [
        {
         "opp": "BOU",
@@ -374,7 +374,7 @@
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.1,
+      "xpts": 4.09,
       "fixtures": [
        {
         "opp": "FUL",
@@ -429,11 +429,11 @@
     "name": "Leno",
     "team": "FUL",
     "price": 4.5,
-    "total": 18.78,
+    "total": 18.62,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.37,
+      "xpts": 3.21,
       "fixtures": [
        {
         "opp": "MCI",
@@ -488,11 +488,11 @@
     "name": "Tzolakis",
     "team": "HUL",
     "price": 4.7,
-    "total": 18.54,
+    "total": 18.4,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.64,
+      "xpts": 3.49,
       "fixtures": [
        {
         "opp": "BHA",
@@ -547,11 +547,11 @@
     "name": "Roefs",
     "team": "SUN",
     "price": 4.9,
-    "total": 18.4,
+    "total": 18.32,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.4,
+      "xpts": 3.32,
       "fixtures": [
        {
         "opp": "AVL",
@@ -608,11 +608,11 @@
     "name": "Konsa",
     "team": "ARS",
     "price": 4.8,
-    "total": 24.73,
+    "total": 24.6,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 5.09,
+      "xpts": 4.96,
       "fixtures": [
        {
         "opp": "NEW",
@@ -667,11 +667,11 @@
     "name": "Gabriel",
     "team": "ARS",
     "price": 8.1,
-    "total": 24.27,
+    "total": 24.16,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 5.02,
+      "xpts": 4.92,
       "fixtures": [
        {
         "opp": "NEW",
@@ -726,11 +726,11 @@
     "name": "Hill",
     "team": "BOU",
     "price": 5.6,
-    "total": 23.63,
+    "total": 23.49,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.88,
+      "xpts": 4.74,
       "fixtures": [
        {
         "opp": "NFO",
@@ -781,74 +781,15 @@
     ]
    },
    {
-    "id": 566,
-    "name": "Silva",
-    "team": "BOU",
-    "price": 5.1,
-    "total": 22.55,
-    "by_gw": [
-     {
-      "gw": 11,
-      "xpts": 4.68,
-      "fixtures": [
-       {
-        "opp": "NFO",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 12,
-      "xpts": 4.53,
-      "fixtures": [
-       {
-        "opp": "FUL",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 13,
-      "xpts": 4.14,
-      "fixtures": [
-       {
-        "opp": "BHA",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 14,
-      "xpts": 5.34,
-      "fixtures": [
-       {
-        "opp": "HUL",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 15,
-      "xpts": 3.85,
-      "fixtures": [
-       {
-        "opp": "ARS",
-        "home": false
-       }
-      ]
-     }
-    ]
-   },
-   {
     "id": 112,
     "name": "Van Hecke",
     "team": "TOT",
     "price": 5.1,
-    "total": 22.49,
+    "total": 22.6,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.87,
+      "xpts": 4.98,
       "fixtures": [
        {
         "opp": "IPS",
@@ -899,15 +840,74 @@
     ]
    },
    {
+    "id": 566,
+    "name": "Silva",
+    "team": "BOU",
+    "price": 5.1,
+    "total": 22.42,
+    "by_gw": [
+     {
+      "gw": 11,
+      "xpts": 4.55,
+      "fixtures": [
+       {
+        "opp": "NFO",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 12,
+      "xpts": 4.53,
+      "fixtures": [
+       {
+        "opp": "FUL",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 13,
+      "xpts": 4.14,
+      "fixtures": [
+       {
+        "opp": "BHA",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 14,
+      "xpts": 5.34,
+      "fixtures": [
+       {
+        "opp": "HUL",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 15,
+      "xpts": 3.85,
+      "fixtures": [
+       {
+        "opp": "ARS",
+        "home": false
+       }
+      ]
+     }
+    ]
+   },
+   {
     "id": 334,
     "name": "Muharemović",
     "team": "LEE",
     "price": 5.1,
-    "total": 22.39,
+    "total": 21.83,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.45,
+      "xpts": 3.89,
       "fixtures": [
        {
         "opp": "CHE",
@@ -962,7 +962,7 @@
     "name": "Vuskovic",
     "team": "BHA",
     "price": 5.3,
-    "total": 21.5,
+    "total": 21.51,
     "by_gw": [
      {
       "gw": 11,
@@ -1017,74 +1017,15 @@
     ]
    },
    {
-    "id": 472,
-    "name": "Murillo",
-    "team": "NFO",
-    "price": 5.5,
-    "total": 20.92,
-    "by_gw": [
-     {
-      "gw": 11,
-      "xpts": 3.59,
-      "fixtures": [
-       {
-        "opp": "BOU",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 12,
-      "xpts": 4.65,
-      "fixtures": [
-       {
-        "opp": "CHE",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 13,
-      "xpts": 4.89,
-      "fixtures": [
-       {
-        "opp": "HUL",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 14,
-      "xpts": 4.03,
-      "fixtures": [
-       {
-        "opp": "BHA",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 15,
-      "xpts": 3.75,
-      "fixtures": [
-       {
-        "opp": "SUN",
-        "home": false
-       }
-      ]
-     }
-    ]
-   },
-   {
     "id": 502,
     "name": "Robertson",
     "team": "TOT",
     "price": 4.3,
-    "total": 20.84,
+    "total": 20.93,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.47,
+      "xpts": 4.57,
       "fixtures": [
        {
         "opp": "IPS",
@@ -1135,15 +1076,74 @@
     ]
    },
    {
+    "id": 472,
+    "name": "Murillo",
+    "team": "NFO",
+    "price": 5.5,
+    "total": 20.87,
+    "by_gw": [
+     {
+      "gw": 11,
+      "xpts": 3.55,
+      "fixtures": [
+       {
+        "opp": "BOU",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 12,
+      "xpts": 4.65,
+      "fixtures": [
+       {
+        "opp": "CHE",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 13,
+      "xpts": 4.89,
+      "fixtures": [
+       {
+        "opp": "HUL",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 14,
+      "xpts": 4.03,
+      "fixtures": [
+       {
+        "opp": "BHA",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 15,
+      "xpts": 3.75,
+      "fixtures": [
+       {
+        "opp": "SUN",
+        "home": false
+       }
+      ]
+     }
+    ]
+   },
+   {
     "id": 91,
     "name": "Pinnock",
     "team": "COV",
     "price": 4.5,
-    "total": 20.44,
+    "total": 20.37,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.25,
+      "xpts": 4.18,
       "fixtures": [
        {
         "opp": "CRY",
@@ -1200,11 +1200,11 @@
     "name": "Rudoni",
     "team": "COV",
     "price": 4.9,
-    "total": 22.65,
+    "total": 22.42,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 5.19,
+      "xpts": 4.96,
       "fixtures": [
        {
         "opp": "CRY",
@@ -1259,11 +1259,11 @@
     "name": "B.Fernandes",
     "team": "MUN",
     "price": 11.6,
-    "total": 22.38,
+    "total": 22.25,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.87,
+      "xpts": 3.75,
       "fixtures": [
        {
         "opp": "LIV",
@@ -1314,133 +1314,15 @@
     ]
    },
    {
-    "id": 542,
-    "name": "E.Le Fée",
-    "team": "SUN",
-    "price": 5.7,
-    "total": 21.53,
-    "by_gw": [
-     {
-      "gw": 11,
-      "xpts": 4.67,
-      "fixtures": [
-       {
-        "opp": "AVL",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 12,
-      "xpts": 4.22,
-      "fixtures": [
-       {
-        "opp": "TOT",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 13,
-      "xpts": 4.08,
-      "fixtures": [
-       {
-        "opp": "LIV",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 14,
-      "xpts": 4.41,
-      "fixtures": [
-       {
-        "opp": "NEW",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 15,
-      "xpts": 4.14,
-      "fixtures": [
-       {
-        "opp": "NFO",
-        "home": true
-       }
-      ]
-     }
-    ]
-   },
-   {
-    "id": 480,
-    "name": "Gibbs-White",
-    "team": "NFO",
-    "price": 7.8,
-    "total": 21.22,
-    "by_gw": [
-     {
-      "gw": 11,
-      "xpts": 3.71,
-      "fixtures": [
-       {
-        "opp": "BOU",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 12,
-      "xpts": 4.7,
-      "fixtures": [
-       {
-        "opp": "CHE",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 13,
-      "xpts": 4.49,
-      "fixtures": [
-       {
-        "opp": "HUL",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 14,
-      "xpts": 4.2,
-      "fixtures": [
-       {
-        "opp": "BHA",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 15,
-      "xpts": 4.12,
-      "fixtures": [
-       {
-        "opp": "SUN",
-        "home": false
-       }
-      ]
-     }
-    ]
-   },
-   {
     "id": 154,
     "name": "Palmer",
     "team": "CHE",
     "price": 9.8,
-    "total": 20.75,
+    "total": 21.32,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.87,
+      "xpts": 4.44,
       "fixtures": [
        {
         "opp": "LEE",
@@ -1491,15 +1373,133 @@
     ]
    },
    {
+    "id": 480,
+    "name": "Gibbs-White",
+    "team": "NFO",
+    "price": 7.8,
+    "total": 21.31,
+    "by_gw": [
+     {
+      "gw": 11,
+      "xpts": 3.8,
+      "fixtures": [
+       {
+        "opp": "BOU",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 12,
+      "xpts": 4.7,
+      "fixtures": [
+       {
+        "opp": "CHE",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 13,
+      "xpts": 4.49,
+      "fixtures": [
+       {
+        "opp": "HUL",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 14,
+      "xpts": 4.2,
+      "fixtures": [
+       {
+        "opp": "BHA",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 15,
+      "xpts": 4.12,
+      "fixtures": [
+       {
+        "opp": "SUN",
+        "home": false
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": 542,
+    "name": "E.Le Fée",
+    "team": "SUN",
+    "price": 5.7,
+    "total": 20.98,
+    "by_gw": [
+     {
+      "gw": 11,
+      "xpts": 4.12,
+      "fixtures": [
+       {
+        "opp": "AVL",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 12,
+      "xpts": 4.22,
+      "fixtures": [
+       {
+        "opp": "TOT",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 13,
+      "xpts": 4.08,
+      "fixtures": [
+       {
+        "opp": "LIV",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 14,
+      "xpts": 4.41,
+      "fixtures": [
+       {
+        "opp": "NEW",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 15,
+      "xpts": 4.14,
+      "fixtures": [
+       {
+        "opp": "NFO",
+        "home": true
+       }
+      ]
+     }
+    ]
+   },
+   {
     "id": 427,
     "name": "Mbeumo",
     "team": "MUN",
     "price": 7.9,
-    "total": 20.09,
+    "total": 19.98,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.51,
+      "xpts": 3.41,
       "fixtures": [
        {
         "opp": "LIV",
@@ -1554,11 +1554,11 @@
     "name": "Ødegaard",
     "team": "ARS",
     "price": 6.7,
-    "total": 19.5,
+    "total": 19.65,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.16,
+      "xpts": 4.31,
       "fixtures": [
        {
         "opp": "NEW",
@@ -1613,11 +1613,11 @@
     "name": "Groß",
     "team": "BHA",
     "price": 6.3,
-    "total": 18.91,
+    "total": 19.15,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.89,
+      "xpts": 4.13,
       "fixtures": [
        {
         "opp": "HUL",
@@ -1672,11 +1672,11 @@
     "name": "Tavernier",
     "team": "BOU",
     "price": 6.7,
-    "total": 18.6,
+    "total": 18.62,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.75,
+      "xpts": 3.77,
       "fixtures": [
        {
         "opp": "NFO",
@@ -1731,11 +1731,11 @@
     "name": "Rice",
     "team": "ARS",
     "price": 7.5,
-    "total": 18.44,
+    "total": 18.53,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.86,
+      "xpts": 3.96,
       "fixtures": [
        {
         "opp": "NEW",
@@ -1792,11 +1792,11 @@
     "name": "N.Jackson",
     "team": "AVL",
     "price": 7.1,
-    "total": 26.12,
+    "total": 26.27,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.81,
+      "xpts": 4.96,
       "fixtures": [
        {
         "opp": "SUN",
@@ -1847,74 +1847,15 @@
     ]
    },
    {
-    "id": 249,
-    "name": "Barry",
-    "team": "EVE",
-    "price": 5.7,
-    "total": 25.4,
-    "by_gw": [
-     {
-      "gw": 11,
-      "xpts": 5.01,
-      "fixtures": [
-       {
-        "opp": "BRE",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 12,
-      "xpts": 5.21,
-      "fixtures": [
-       {
-        "opp": "LIV",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 13,
-      "xpts": 5.86,
-      "fixtures": [
-       {
-        "opp": "AVL",
-        "home": false
-       }
-      ]
-     },
-     {
-      "gw": 14,
-      "xpts": 4.96,
-      "fixtures": [
-       {
-        "opp": "FUL",
-        "home": true
-       }
-      ]
-     },
-     {
-      "gw": 15,
-      "xpts": 4.37,
-      "fixtures": [
-       {
-        "opp": "BHA",
-        "home": false
-       }
-      ]
-     }
-    ]
-   },
-   {
     "id": 411,
     "name": "Haaland",
     "team": "MCI",
     "price": 15.8,
-    "total": 25.32,
+    "total": 25.88,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 5.3,
+      "xpts": 5.86,
       "fixtures": [
        {
         "opp": "FUL",
@@ -1965,15 +1906,74 @@
     ]
    },
    {
+    "id": 249,
+    "name": "Barry",
+    "team": "EVE",
+    "price": 5.7,
+    "total": 25.2,
+    "by_gw": [
+     {
+      "gw": 11,
+      "xpts": 4.8,
+      "fixtures": [
+       {
+        "opp": "BRE",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 12,
+      "xpts": 5.21,
+      "fixtures": [
+       {
+        "opp": "LIV",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 13,
+      "xpts": 5.86,
+      "fixtures": [
+       {
+        "opp": "AVL",
+        "home": false
+       }
+      ]
+     },
+     {
+      "gw": 14,
+      "xpts": 4.96,
+      "fixtures": [
+       {
+        "opp": "FUL",
+        "home": true
+       }
+      ]
+     },
+     {
+      "gw": 15,
+      "xpts": 4.37,
+      "fixtures": [
+       {
+        "opp": "BHA",
+        "home": false
+       }
+      ]
+     }
+    ]
+   },
+   {
     "id": 379,
     "name": "Isak",
     "team": "LIV",
     "price": 9.3,
-    "total": 24.11,
+    "total": 23.84,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 5.92,
+      "xpts": 5.64,
       "fixtures": [
        {
         "opp": "MUN",
@@ -2028,11 +2028,11 @@
     "name": "Calvert-Lewin",
     "team": "LEE",
     "price": 6.0,
-    "total": 23.57,
+    "total": 23.38,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.51,
+      "xpts": 4.32,
       "fixtures": [
        {
         "opp": "CHE",
@@ -2087,11 +2087,11 @@
     "name": "Evanilson",
     "team": "BOU",
     "price": 6.5,
-    "total": 20.48,
+    "total": 20.54,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 4.11,
+      "xpts": 4.18,
       "fixtures": [
        {
         "opp": "NFO",
@@ -2205,11 +2205,11 @@
     "name": "McBurnie",
     "team": "HUL",
     "price": 5.5,
-    "total": 18.59,
+    "total": 18.65,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.62,
+      "xpts": 3.68,
       "fixtures": [
        {
         "opp": "BHA",
@@ -2264,11 +2264,11 @@
     "name": "Strand Larsen",
     "team": "CRY",
     "price": 5.9,
-    "total": 18.19,
+    "total": 18.21,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 2.59,
+      "xpts": 2.6,
       "fixtures": [
        {
         "opp": "COV",
@@ -2319,64 +2319,71 @@
     ]
    },
    {
-    "id": 552,
-    "name": "Brobbey",
-    "team": "SUN",
-    "price": 5.7,
-    "total": 18.04,
+    "id": 167,
+    "name": "Delap",
+    "team": "NFO",
+    "price": 5.3,
+    "total": 17.53,
     "by_gw": [
      {
       "gw": 11,
-      "xpts": 3.33,
+      "xpts": 3.2,
       "fixtures": [
        {
-        "opp": "AVL",
+        "opp": "BOU",
         "home": false
        }
       ]
      },
      {
       "gw": 12,
-      "xpts": 3.54,
+      "xpts": 3.82,
       "fixtures": [
        {
-        "opp": "TOT",
+        "opp": "CHE",
         "home": true
        }
       ]
      },
      {
       "gw": 13,
-      "xpts": 3.64,
+      "xpts": 3.58,
       "fixtures": [
        {
-        "opp": "LIV",
+        "opp": "HUL",
         "home": false
        }
       ]
      },
      {
       "gw": 14,
-      "xpts": 3.97,
+      "xpts": 3.47,
       "fixtures": [
        {
-        "opp": "NEW",
-        "home": false
+        "opp": "BHA",
+        "home": true
        }
       ]
      },
      {
       "gw": 15,
-      "xpts": 3.56,
+      "xpts": 3.45,
       "fixtures": [
        {
-        "opp": "NFO",
-        "home": true
+        "opp": "SUN",
+        "home": false
        }
       ]
      }
     ]
    }
   ]
+ },
+ "odds": {
+  "source": "The Odds API",
+  "fetched_at": "2026-11-14T02:38:04Z",
+  "gameweek": 11,
+  "fixtures_anchored": 10,
+  "fixtures_total": 10
  }
 }

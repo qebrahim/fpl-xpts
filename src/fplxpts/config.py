@@ -28,6 +28,9 @@ class ModelCfg:
     opp_xg_gamma: float = 1.0  # exponent on the opponent-xG matchup multiplier for clean sheets; <1 damps it
     absence_starts_before: int = 0  # starts needed before a 0-minute run to treat it as an injury absence; 0 = off
     absence_starts_after: int = 1   # starts needed on return before that run is dropped from the minutes window
+    odds_weight: float = 0.0          # blend weight of bookmaker-implied team goals in fixtures with odds; 0 = off, 1 = odds only
+    odds_side: str = "both"           # which side the odds anchor: "both", "attack" (goals/assists) or "defence" (cs/gc/saves)
+    odds_ratings_weight: float = 0.0  # each next-round fixture's odds count as this many extra games in team ratings; 0 = off
     prior_seasons: dict = field(default_factory=lambda: {"2025/26": 1.0, "2024/25": 0.5})
 
 
