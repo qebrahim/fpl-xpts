@@ -18,7 +18,7 @@ the errors it finds.
 - **Bookmaker odds:** for the next gameweek, each team's expected goals for and against are blended 50/50 with the
   goals implied by bookmaker 1X2 and over/under prices (de-vigged, converted to Poisson goals), which feeds clean
   sheets, goals conceded, saves and the attacking multiplier. In the walk-forward backtest with pre-match odds this
-  improved next-round player RMSE significantly (walk-forward 2.935 -> 2.916 on those rows). Falls back to the
+  improved next-round player RMSE significantly (walk-forward 2.934 -> 2.913 on those rows). Falls back to the
   model's own numbers when there is no API key or no odds; `--no-odds` turns it off.
 - **Bonus by how it is earned:** projected from the goals, assists, clean sheet and saves expected in each
   fixture (marginal bonus per event by position) plus a player baseline, not a flat rate.
@@ -52,9 +52,9 @@ fplxpts backtest --season all                                        # replay pa
 Example (`fplxpts squad --swap Schade:Rudoni --weeks 1 --no-odds`):
 
 ```
-GW11  5-2-3  XI 51.7  (C Haaland, VC Isak)
-   XI   : Raya 4.3, Van Hecke 4.7, De Cuyper 4.3, Thomas 4.2, Muharemović 4.2, Calafiori 4.2, Rudoni 5.2, Tavernier 4.0, Haaland 5.9, Isak 5.7, N.Jackson 5.0
-   Bench: Mbeumo 3.7, Rogers 3.3, Barnes 3.1, Palmer 0.0
+GW11  5-2-3  XI 51.4  (C Haaland, VC Isak)
+   XI   : Raya 4.3, Van Hecke 4.8, De Cuyper 4.3, Thomas 4.2, Muharemović 4.2, Calafiori 4.2, Rudoni 5.2, Tavernier 4.0, Haaland 5.7, Isak 5.6, N.Jackson 5.0
+   Bench: Mbeumo 3.7, Rogers 3.3, Barnes 3.0, Palmer 0.0
 ```
 
 ### Bookmaker odds (optional)
@@ -80,19 +80,20 @@ Walk-forward over GW1-9 starts, predicting the next 5 rounds (9,267 player-games
 | Predictor | RMSE |
 |---|---|
 | Model, calibrated, walk-forward (out-of-sample) | 2.958 |
-| Model, calibrated, in-sample (shipped factors) | 2.946 |
-| Model, uncalibrated | 2.966 |
+| Model, calibrated, in-sample (shipped factors) | 2.945 |
+| Model, uncalibrated | 2.965 |
 | Season points-per-game so far | 3.332 |
 | Last-four-games form | 3.365 |
 
 These are without bookmaker odds (`--no-odds`); with the shipped next-round odds anchoring (pre-match odds,
 only those available before each round, `odds_weight = 0.5`, plus the ratings nudge `odds_ratings_weight = 1`) they are
-2.949 walk-forward, 2.936 in-sample, 2.956 uncalibrated (time split 2.846 -> 2.833). The recency half-lives and
-last-season prior weight were chosen on four past seasons (below); on these ten weeks they are slightly worse than
-the previous, shorter settings (walk-forward 2.955 -> 2.958 without odds, not significant).
+2.948 walk-forward, 2.935 in-sample, 2.955 uncalibrated (time split 2.843 -> 2.830). The recency half-lives and
+position-prior weight were chosen on four past seasons (below); on these ten weeks they are slightly worse than
+the previous, shorter settings (walk-forward 2.955 -> 2.958 without odds, not significant). The last-season prior
+weight stays at 0.15: raising it to 0.3 with them was no better in any season (docs/BACKTEST.md).
 The in-sample line uses factors fitted on the same rows; the walk-forward line refits them at each cutoff using
 only outcomes known by then (cutoff 1 has nothing to fit on and stays uncalibrated). Factors fitted on early
-rounds and tested on later ones: RMSE 2.850 -> 2.836 and bias +0.22 -> -0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
+rounds and tested on later ones: RMSE 2.847 -> 2.833 and bias +0.23 -> -0.01. Weekly FPL points are mostly noise: correlation between predicted and actual is about 0.29.
 See [docs/BACKTEST.md](docs/BACKTEST.md) for the method and what the backtest found (for example, defender
 goal threat was over-projected by roughly 2x, and past finishing under-performance did not persist).
 
@@ -101,24 +102,25 @@ goal threat was over-projected by roughly 2x, and past finishing under-performan
 Most hyper-parameters were chosen on ten gameweeks, so the model was also replayed on four earlier seasons, each
 season on its own (its own teams, players, priors from the season before, scoring rules and odds), from the
 community archive (`fplxpts backtest --season all`). Walk-forward over the whole season, next 5 rounds, odds on,
-calibration refitted inside the season at each cutoff, shipped settings (the recency half-lives and prior weights
-were chosen on these four seasons, so for those four settings this is not out of sample):
+calibration refitted inside the season at each cutoff, shipped settings (the recency half-lives and `prior_min`
+were chosen on these four seasons, so for those three settings this is not out of sample):
 
 | Season | Player-games | Model RMSE | Season PPG | Last-four form | Model minus PPG | Squared-error diff vs PPG [95% CI] | Top-12 picks: model / by PPG |
 |---|---|---|---|---|---|---|---|
-| 2025/26 | 69,197 | 2.745 | 2.828 | 2.999 | -0.082 | -0.46 [-0.61, -0.31] | 4.62 / 4.33 |
-| 2024/25 | 70,128 | 2.557 | 2.654 | 2.806 | -0.096 | -0.50 [-0.64, -0.38] | 5.37 / 4.67 |
-| 2023/24 | 70,664 | 2.653 | 2.751 | 2.893 | -0.097 | -0.53 [-0.67, -0.39] | 5.30 / 4.77 |
+| 2025/26 | 69,197 | 2.745 | 2.828 | 2.999 | -0.082 | -0.46 [-0.60, -0.32] | 4.57 / 4.33 |
+| 2024/25 | 70,128 | 2.558 | 2.654 | 2.806 | -0.096 | -0.50 [-0.64, -0.37] | 5.37 / 4.67 |
+| 2023/24 | 70,664 | 2.654 | 2.751 | 2.893 | -0.097 | -0.52 [-0.67, -0.39] | 5.27 / 4.77 |
 | 2022/23 (from GW16, no xG before) | 39,314 | 2.667 | 2.791 | 2.906 | -0.124 | -0.68 [-0.88, -0.49] | 5.44 / 5.83 |
-| 2026/27 GW1-10 (current, for comparison) | 9,267 | 2.949 | 3.332 | 3.365 | -0.384 | -2.41 [-3.07, -1.78] | 4.50 / 4.04 |
+| 2026/27 GW1-10 (current, for comparison) | 9,267 | 2.948 | 3.332 | 3.365 | -0.384 | -2.41 [-3.07, -1.79] | 4.71 / 4.04 |
 
 The model beats both baselines in every season and phase, but the large margin seen on the current season's first
 ten weeks is a start-of-season effect: over GW20-29 it is only 0.01-0.03 RMSE better than PPG (the ranking edge
 persists). The odds, strength-of-schedule ratings and the injury-absence rule hold up on past seasons; the opponent
 DC factor does not; every past season preferred longer form and team-rating half-lives than the earlier 4 and 3
-games and a stronger last-season prior, so those are now shipped (8 and 8 games, prior weight 0.3, position prior
-300 minutes); and several shipped calibration factors (clean sheets, goals conceded, GK bonus) lie outside every past season's
-range. Details and recommendations: [docs/BACKTEST.md, Past seasons](docs/BACKTEST.md#past-seasons).
+games, so those are now shipped (8 and 8 games, position prior 300 minutes; a stronger last-season prior, 0.3
+against 0.15, was tried with them and not kept, as it was no better in any season); and several shipped
+calibration factors (clean sheets, goals conceded, GK bonus) lie outside every past season's range. Details and
+recommendations: [docs/BACKTEST.md, Past seasons](docs/BACKTEST.md#past-seasons).
 
 ## Data sources
 

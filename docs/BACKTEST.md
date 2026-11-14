@@ -24,25 +24,27 @@ outcomes known at that cutoff, see below) and a single **time split** (fit on ta
 
 | Predictor | RMSE | Bias | Corr |
 |---|---|---|---|
-| Model, uncalibrated | 2.966 | +0.25 | 0.286 |
-| Model, calibrated (in-sample: shipped factors, fitted on these rows) | 2.946 | +0.02 | 0.288 |
+| Model, uncalibrated | 2.965 | +0.26 | 0.286 |
+| Model, calibrated (in-sample: shipped factors, fitted on these rows) | 2.945 | +0.02 | 0.288 |
 | Model, calibrated walk-forward (out-of-sample) | 2.958 | +0.12 | 0.284 |
 | Naive: season PPG | 3.332 | | |
 | Naive: last-four form | 3.365 | | |
 
 The three model rows are without bookmaker odds (`fplxpts backtest --no-odds`). With the shipped odds anchoring
 (next round only, pre-match odds, blend `odds_weight = 0.5` plus ratings nudge `odds_ratings_weight = 1`, see the section
-below) they are 2.956 / 2.936 / 2.949 (bias +0.26 / +0.03 / +0.12, top-12 4.53 / 4.61 / 4.50), time split 2.846 -> 2.833.
-(Before the longer half-lives and stronger last-season prior, see that section below: without odds 2.963 / 2.943 /
+below) they are 2.955 / 2.935 / 2.948 (bias +0.26 / +0.03 / +0.12, top-12 4.74 / 4.68 / 4.71), time split 2.843 -> 2.830.
+(Before `prior_lambda` went back from 0.3 to 0.15 and the factors were refitted, see "prior_lambda kept at 0.15" below:
+without odds 2.966 / 2.946 / 2.958, time split 2.850 -> 2.836; with odds 2.956 / 2.936 / 2.949, top-12 4.53 / 4.61 /
+4.50, 2.846 -> 2.833. Before the longer half-lives and the 0.3 prior, see that section below: without odds 2.963 / 2.943 /
 2.955, time split 2.840 -> 2.826; with odds 2.953 / 2.933 / 2.945, top-12 4.65 / 4.85 / 4.64, 2.837 -> 2.824.)
 (Before save points were modelled as whole threes, see "Save points" below: 2.954 / 2.934 / 2.946, top-12 4.71 / 4.87 / 4.72, 2.837 -> 2.823;
 the feature-test sections further down were run before that change and quote the older numbers.)
 (With the blend alone, before the nudge was switched on: 2.959 / 2.939 / 2.951, top-12 4.68 / 4.68 / 4.58, 2.840 -> 2.826.)
 
 Top-12 picks (average actual points of the 12 highest-projected players per cutoff and round), without odds:
-uncalibrated 4.53, in-sample calibrated 4.50, walk-forward 4.48.
+uncalibrated 4.69, in-sample calibrated 4.58, walk-forward 4.58.
 
-Time split (fit rounds <= 6, test rounds >= 7), without odds: RMSE 2.850 -> 2.836, bias +0.223 -> -0.007.
+Time split (fit rounds <= 6, test rounds >= 7), without odds: RMSE 2.847 -> 2.833, bias +0.227 -> -0.006.
 
 The walk-forward bias (+0.12) is much higher than in-sample because the first cutoffs have no or little data to fit
 on: cutoff 1 is uncalibrated (bias +0.47 on its 660 rows), cutoffs 2-3 are mostly shrunk to 1. From cutoff 4 on
@@ -138,8 +140,8 @@ most of a week's points are luck. The useful signal is in ranking players, not i
 ## Hyper-parameter search (27 settings) (superseded)
 
 **Superseded** for the half-lives and prior weights by the past-season study (see "Past seasons", c(iii), and
-"Longer half-lives and a stronger last-season prior (shipped)"): `form_halflife` is now 8, `team_halflife` 8,
-`prior_min` 300, `prior_lambda` 0.3. The original ten-week search, kept for the record:
+"Longer half-lives and a stronger last-season prior" and "prior_lambda kept at 0.15"): `form_halflife` is now 8,
+`team_halflife` 8, `prior_min` 300; `prior_lambda` stays at 0.15. The original ten-week search, kept for the record:
 
 Form half-life {season-long, 4, 6 games} x last-season prior weight {0, 0.15, 0.3} x prior pseudo-minutes
 {180, 270, 450}. Best: half-life 4, prior weight 0.15, prior minutes 450 (RMSE 2.9622 vs 2.9703 for
@@ -502,11 +504,13 @@ gets slightly more (0.96 vs 0.89). In the GW11-15 top 10, most keepers at strong
 bonus remains over-projected (roadmap). The "Past seasons" tables below were produced before this fix; its effect
 on them is within 0.001 walk-forward RMSE.
 
-## Longer half-lives and a stronger last-season prior (shipped)
+## Longer half-lives and a stronger last-season prior (half-lives and prior_min shipped; the stronger prior reverted)
 
 The past-season study below (c(iii)) found that every past season prefers longer recency windows and a stronger
 last-season prior than the values chosen on ten weeks. The owner adopted its recommended combination: `form_halflife`
-4 -> 8, `team_halflife` 3 -> 8, `prior_min` 450 -> 300, `prior_lambda` 0.15 -> 0.3. Every calibration factor was
+4 -> 8, `team_halflife` 3 -> 8, `prior_min` 450 -> 300, `prior_lambda` 0.15 -> 0.3. **Of these, `prior_lambda` was
+later put back to 0.15** (see "prior_lambda kept at 0.15" below); the half-lives and `prior_min` are shipped. The
+table and numbers in this section are for the four-value combination as first shipped. Every calibration factor was
 refitted with the shipped method (`fplxpts backtest --fit`, k = 160, rows with the historical odds on, as the command
 runs; the factors before this were fitted on odds-off rows except GK saves). Re-run after the saves fix (fresh rows,
 walk-forward calibration, odds on; dMSE = squared error new minus old, 95% CI from a paired bootstrap by player,
@@ -538,6 +542,43 @@ these four values and report them, so their improvement is in sample for this ch
 Effect on GW11-15 projections: attackers with a strong last season or a cold recent run rise (Haaland +1.8,
 Mbeumo +1.8, B.Fernandes +1.6, Isak +1.5, Palmer +1.5), keepers and defenders of teams whose recent defensive
 record was better than their season average fall (Verbruggen -1.2, Kinsky -1.0).
+
+### prior_lambda kept at 0.15
+
+The owner felt that last season was now weighted too heavily, and an isolated sweep of `prior_lambda` (everything else
+as shipped: half-lives 8 and 8, `prior_min` 300, odds on, walk-forward calibration, uncalibrated rows refitted at each
+cutoff; script kept outside the repo) confirmed that 0.3 is not better than 0.15. `prior_lambda` is back at 0.15; the
+two half-lives and `prior_min` stay at their new values, and every calibration factor was refitted
+(`fplxpts backtest --fit`).
+
+Walk-forward RMSE by `prior_lambda`:
+
+| season | n | 0 | 0.075 | 0.15 | 0.3 | 0.45 | squared error 0.15 minus 0.3 [95% CI by player], all cutoffs | cutoffs 1-5 | cutoffs 6-10 |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026/27 GW1-10 | 9,267 | 2.9516 | 2.9484 | 2.9478 | 2.9485 | 2.9496 | -0.0042 [-0.0198, +0.0104] | +0.004 [-0.014, +0.022] (n 5,915) | -0.019 [-0.040, +0.000] (n 3,352) |
+| 2025/26 | 69,197 | 2.7476 | 2.7458 | 2.7454 | 2.7454 | 2.7458 | -0.0004 [-0.0079, +0.0058] | -0.043 [-0.072, -0.020] (n 6,245) | -0.001 [-0.017, +0.012] (n 8,980) |
+| 2024/25 | 70,128 | 2.5616 | 2.5590 | 2.5579 | 2.5574 | 2.5574 | +0.0029 [-0.0030, +0.0090] | +0.013 [-0.032, +0.063] (n 6,095) | +0.006 [-0.010, +0.026] (n 8,761) |
+| 2023/24 | 70,664 | 2.6563 | 2.6547 | 2.6539 | 2.6533 | 2.6533 | +0.0032 [-0.0020, +0.0081] | +0.023 [-0.002, +0.052] (n 6,043) | +0.002 [-0.009, +0.013] (n 8,853) |
+
+(2022/23 has no prior.) Negative favours 0.15. The reasons:
+
+1. **No evidence that 0.3 is better.** No season separates 0.15 from 0.3 overall (all four intervals contain zero,
+   differences of at most 0.004 in squared error, under 0.001 in RMSE). 0.15 is significantly better at cutoffs 1-5 of
+   2025/26 and borderline better at cutoffs 6-10 of 2026/27, the two places where a heavy prior could hurt (players who
+   changed role or club, and the current season); 0.3-0.45 are marginally better only in the other seasons' early
+   weeks, within noise. Removing the prior altogether (0) is significantly worse in 2024/25 and 2023/24, so the prior
+   itself stays.
+2. **Penalty xG is double-counted.** Last season's xG still includes penalties (they are not stripped from the prior as
+   they are from the current-season history), while each club's primary taker also gets the flat `pen_share_xg`. A
+   heavier prior counts a taker's penalties twice with a bigger weight. Stripping them from last season's rates is an
+   open item (docs/ROADMAP.md, P1 item 7); a stronger prior can be re-tested once that is done.
+
+Effect of the revert on the current-season backtest (calibration refitted): without odds 2.966 / 2.946 / 2.958 ->
+2.965 / 2.945 / 2.958 (uncalibrated / in-sample / walk-forward), top-12 4.53 / 4.50 / 4.48 -> 4.69 / 4.58 / 4.58, time
+split 2.850 -> 2.836 became 2.847 -> 2.833; with odds 2.956 / 2.936 / 2.949 -> 2.955 / 2.935 / 2.948, top-12 4.53 / 4.61 /
+4.50 -> 4.74 / 4.68 / 4.71, time split 2.846 -> 2.833 became 2.843 -> 2.830. Past seasons, walk-forward (odds on):
+2.745 / 2.557 / 2.653 / 2.667 -> 2.745 / 2.558 / 2.654 / 2.667 (2025/26 .. 2022/23); top-12 4.62 / 5.37 / 5.30 / 5.44 ->
+4.57 / 5.37 / 5.27 / 5.44.
 
 ### Calibration shrunk towards last season's factors (previewed, not shipped)
 
@@ -904,8 +945,9 @@ Readings:
 - **The current season does not (yet) agree**: on 2026/27 GW1-10 the combo is +0.018 [-0.013, +0.051] (worse, not
   significant). Recommendation: form_halflife 8 and team_halflife 8 (with prior_min 300, prior_lambda 0.3) improve
   walk-forward RMSE by 0.003-0.008 (dMSE -0.014 to -0.042) in all four past seasons; re-check on 2026/27 at GW20 and
-  switch then if it does not reverse. Not changed in this study. (Since shipped by the owner's decision, see
-  "Longer half-lives and a stronger last-season prior (shipped)"; the GW20 re-check remains.)
+  switch then if it does not reverse. Not changed in this study. (Since shipped by the owner's decision, except
+  `prior_lambda`, which was kept at 0.15 after an isolated sweep, see "Longer half-lives and a stronger last-season
+  prior" and "prior_lambda kept at 0.15"; the GW20 re-check remains.)
 
 ### d. Season start: promoted teams, summer movers, priors
 
@@ -1007,7 +1049,8 @@ Ranked by the strength of the evidence (see docs/ROADMAP.md; 3 and 6 have since 
    (significant in all three seasons, -0.009 to -0.015 overall, -0.09 to -0.16 at cutoffs 1-5); for the live model,
    that means refitting with 2025/26 rows as the shrinkage target rather than trusting ten weeks.
 3. Longer recency windows: form_halflife 8, team_halflife 8 (with prior_min 300, prior_lambda 0.3): -0.014 to
-   -0.042 dMSE in all four past seasons; not yet supported by 2026/27 GW1-10; re-test at GW20.
+   -0.042 dMSE in all four past seasons; not yet supported by 2026/27 GW1-10; re-test at GW20. (Shipped, except
+   prior_lambda, which stayed at 0.15: the isolated sweep found 0.3 no better.)
 4. A team-level prior from last season (6 pseudo-games, halfway to last season's rating; promoted teams at the
    relegated teams' level): significant small gains in all three seasons, large for promoted teams early.
 5. Switch the opponent DC factor off unless 2026/27 GW20+ shows a gain (no effect on the one other season with DC).

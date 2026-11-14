@@ -7,14 +7,17 @@ them.
 **Golden numbers (data through GW10, shipped config, bookmaker odds OFF):** live odds change from day to day, so the
 golden numbers are defined with `--no-odds`: `fplxpts --ttl 999999999 squad --no-odds --squad config/squad.example.toml`,
 `fplxpts --ttl 999999999 export --no-odds --out ...`, `fplxpts --ttl 999999999 backtest --no-odds`.
-GW11-15 expected points: Rudoni 22.8, Konsa 24.9,
-N.Jackson 26.1, Isak 24.2, Haaland 27.2, Van Hecke 21.6 (Isak's minutes are overridden by hand in
-`config/squad.example.toml`; without the override, as in the export, he is 25.6). Backtest: 9,267 player-games,
-RMSE 2.966 (calibrated in-sample 2.946, walk-forward 2.958), time split 2.850 -> 2.836. The backtest with the shipped
-historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.956 (in-sample 2.936,
-walk-forward 2.949), time split 2.846 -> 2.833. (Updated when the recency half-lives and last-season prior were
-changed on the evidence of four past seasons, `form_halflife` 4 -> 8, `team_halflife` 3 -> 8, `prior_min` 450 -> 300,
-`prior_lambda` 0.15 -> 0.3, and every calibration factor was refitted; before that: Rudoni 22.7, Konsa 24.7,
+GW11-15 expected points: Rudoni 22.7, Konsa 25.0,
+N.Jackson 26.0, Isak 23.8, Haaland 26.6, Van Hecke 21.9 (Isak's minutes are overridden by hand in
+`config/squad.example.toml`; without the override, as in the export, he is 25.2). Backtest: 9,267 player-games,
+RMSE 2.965 (calibrated in-sample 2.945, walk-forward 2.958), time split 2.847 -> 2.833. The backtest with the shipped
+historical odds (deterministic, Football-Data.co.uk CSV; plain `fplxpts backtest`): RMSE 2.955 (in-sample 2.935,
+walk-forward 2.948), time split 2.843 -> 2.830. (Updated when `prior_lambda` was put back from 0.3 to 0.15 after an
+isolated sweep (docs/BACKTEST.md, "prior_lambda kept at 0.15") and every calibration factor was refitted; before that:
+Rudoni 22.8, Konsa 24.9, N.Jackson 26.1, Isak 24.2, Haaland 27.2, Van Hecke 21.6, Isak without override 25.6,
+RMSE 2.966 / 2.946 / 2.958, 2.850 -> 2.836 without odds and 2.956 / 2.936 / 2.949, 2.846 -> 2.833 with. Updated when
+the recency half-lives and last-season prior were changed on the evidence of four past seasons, `form_halflife` 4 -> 8,
+`team_halflife` 3 -> 8, `prior_min` 450 -> 300, `prior_lambda` 0.15 -> 0.3, and every calibration factor was refitted; before that: Rudoni 22.7, Konsa 24.7,
 N.Jackson 26.1, Isak 22.7, Haaland 25.3, Van Hecke 22.5, Isak without override 24.1, RMSE 2.963 / 2.943 / 2.955,
 2.840 -> 2.826 without odds and 2.953 / 2.933 / 2.945, 2.837 -> 2.824 with. Updated when save points became E[floor(saves / 3)] and the GK
 saves factor was refitted, 0.668 -> 0.959: the six outfield golden numbers did not move, goalkeepers did, e.g. Raya
@@ -68,7 +71,9 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
 6. **Penalty ingestion.** Penalty goals are a manual list in the squad TOML (FPL exposes only misses).
    Automate from a documented source (respect its terms) or a `data/pens.csv`. Scale the forward share by team
    attacking strength rather than a flat 0.10 xG per game; handle injured/suspended primary takers.
-7. **Priors.** Strip penalty xG from last-season rates; handle promoted teams (no top-flight history) and
+7. **Priors.** Strip penalty xG from last-season rates (open, and a reason `prior_lambda` stayed at 0.15: last
+   season's xG still includes penalties, so a taker's prior double-counts them next to the flat `pen_share_xg`, more so
+   the heavier the prior; re-test a stronger prior once they are stripped); handle promoted teams (no top-flight history) and
    club moves; consider a team-level prior from last season for the first few gameweeks.
 8. **Bonus and saves.** Bonus is now event-driven (`bonus.py`, done). Remaining: model BPS directly (bonus is
    top-3 BPS *within a match*, so a goal is worth less when a teammate also scores), GK bonus (correlation fell
@@ -114,9 +119,14 @@ Rudoni 21.8, Konsa 24.7, N.Jackson 28.8, Isak 25.0, Haaland 26.5, Van Hecke 23.2
       and previewed, not shipped (docs/BACKTEST.md): -0.006 to -0.023 overall, -0.04 to -0.12 at cutoffs 1-5. To
       adopt: choose k (640 looks better than 160 on past seasons), paste the factors, update the golden numbers.
     - **Longer recency windows** (DONE 2026-11, owner's decision on the past-season evidence). `form_halflife` 8 and
-      `team_halflife` 8 with `prior_min` 300, `prior_lambda` 0.3 are shipped, calibration refitted; after the saves
-      fix they improve walk-forward squared error in all four past seasons (-0.013 to -0.042) and are slightly worse,
-      not significantly, on 2026/27 GW1-10 (+0.020 [-0.012, +0.052], top-12 4.64 -> 4.50; see docs/BACKTEST.md).
+      `team_halflife` 8 with `prior_min` 300 are shipped, calibration refitted; `prior_lambda` was first raised to 0.3
+      with them and then put back to 0.15 (DONE 2026-11): an isolated sweep (docs/BACKTEST.md, "prior_lambda kept at
+      0.15") found 0.3 no better than 0.15 in any season (0.15 significantly better at cutoffs 1-5 of 2025/26,
+      borderline at cutoffs 6-10 of 2026/27), and last-season xG still contains penalties, so a heavier prior
+      double-counts penalty xG for takers (see item 7). As a four-value combination (with `prior_lambda` 0.3, before the
+      revert) the change improved walk-forward squared error in all four past seasons after the saves fix (-0.013 to
+      -0.042) and was slightly worse, not significantly, on 2026/27 GW1-10 (+0.020 [-0.012, +0.052], top-12 4.64 ->
+      4.50; see docs/BACKTEST.md).
       Follow-up: re-test on 2026/27 at GW20 (old vs new settings, walk-forward); revert if the current season keeps
       disagreeing significantly.
     - **Team-level prior from last season** for the start of a season: shrink each team's ratings towards its

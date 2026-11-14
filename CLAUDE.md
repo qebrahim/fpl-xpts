@@ -45,8 +45,9 @@ calibration factors) and the user's squad TOML.
   k = 160 = `backtest.CAL_K`, chosen by walk-forward calibration). The in-sample backtest line grades them on the
   rows they were fitted on; the walk-forward line is the honest one. Refit with `fplxpts backtest --fit` (rows with
   the historical odds on) and paste into `default.toml`; refit after any change to the hyper-parameters. The recency
-  half-lives and prior weights (`form_halflife`, `team_halflife`, `prior_min`, `prior_lambda`) were chosen on the four
-  past seasons, not on 2026/27; `ModelCfg` dataclass defaults are the older/off values, `default.toml` is the shipped config.
+  half-lives and `prior_min` (`form_halflife`, `team_halflife`, `prior_min`) were chosen on the four past seasons, not on
+  2026/27; `prior_lambda` stays at 0.15 (an isolated sweep on those seasons found 0.3 no better, and last-season xG
+  still contains penalties); `ModelCfg` dataclass defaults are the older/off values, `default.toml` is the shipped config.
 - Be polite to the API: use the cache, don't add per-request fetch loops without caching.
 - Past seasons are their own world: ids are per season (link players by `code`), `prior_seasons` is written for
   2026/27 and shifted per season (`archive.shift_prior_seasons`), dc points only exist from 2025/26
